@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(_req: Request, context: { params: Promise<{ id: string }> }) {
-  await requireUser();
+  const session = await requireUser();
   const { id } = await context.params;
 
   const record = await prisma.incrementHistory.findUnique({
@@ -26,6 +26,15 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
 
   if (!record) {
     return NextResponse.json({ error: "SK tidak ditemukan" }, { status: 404 });
+  }
+
+  // Access: ADMIN/HR/RECTOR/FOUNDATION can read anything;
+  // EMPLOYEE can only read SKs for their own increment history.
+  if (session.role === "EMPLOYEE") {
+    const user = await prisma.user.findUnique({ where: { id: session.userId } });
+    if (!user?.employeeId || user.employeeId !== record.employee.id) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
   }
 
   const buffer = await renderToBuffer(<SuratKeputusanDocument record={record} />);
