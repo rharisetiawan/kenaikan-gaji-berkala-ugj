@@ -51,17 +51,6 @@ export async function submitIncrementRequestAction(formData: FormData): Promise<
   const incrementAmount = computeIncrementAmount(employee.currentBaseSalary);
   const projectedNewSalary = employee.currentBaseSalary + incrementAmount;
 
-  // Block duplicate active requests.
-  const existing = await prisma.incrementRequest.findFirst({
-    where: {
-      employeeId: employee.id,
-      status: { in: ["SUBMITTED", "HR_VERIFIED", "RECTOR_SIGNED", "FOUNDATION_APPROVED"] },
-    },
-  });
-  if (existing) {
-    throw new Error("Sudah ada pengajuan aktif yang sedang diproses.");
-  }
-
   const required = requiredDocumentsFor(employee.type);
   for (const kind of required) {
     const file = formData.get(`doc_${kind}`);
@@ -70,18 +59,38 @@ export async function submitIncrementRequestAction(formData: FormData): Promise<
     }
   }
 
-  const request = await prisma.incrementRequest.create({
-    data: {
-      employeeId: employee.id,
-      status: "SUBMITTED",
-      currentSalary: employee.currentBaseSalary,
-      projectedNewSalary,
-      incrementAmount,
-      projectedEffectiveDate,
-      employeeNotes: notes,
-      submittedAt: new Date(),
+  // Atomic check-and-create: two concurrent submissions from the same
+  // employee (e.g. double-click or two tabs) can both pass a non-transactional
+  // findFirst. Wrap both reads and write in a Serializable transaction so the
+  // DB rejects the second one.
+  const request = await prisma.$transaction(
+    async (tx) => {
+      const existing = await tx.incrementRequest.findFirst({
+        where: {
+          employeeId: employee.id,
+          status: {
+            in: ["SUBMITTED", "HR_VERIFIED", "RECTOR_SIGNED", "FOUNDATION_APPROVED"],
+          },
+        },
+      });
+      if (existing) {
+        throw new Error("Sudah ada pengajuan aktif yang sedang diproses.");
+      }
+      return tx.incrementRequest.create({
+        data: {
+          employeeId: employee.id,
+          status: "SUBMITTED",
+          currentSalary: employee.currentBaseSalary,
+          projectedNewSalary,
+          incrementAmount,
+          projectedEffectiveDate,
+          employeeNotes: notes,
+          submittedAt: new Date(),
+        },
+      });
     },
-  });
+    { isolationLevel: "Serializable" },
+  );
 
   for (const kind of required) {
     const file = formData.get(`doc_${kind}`) as File;
@@ -134,7 +143,7 @@ export async function hrVerifyAction(formData: FormData): Promise<void> {
   const count = await prisma.incrementRequest.count({
     where: { coverLetterDate: { gte: new Date(now.getFullYear(), 0, 1) } },
   });
-  const autoNumber = `${String(count + 1).padStart(3, "0")}/KGB/UGM/${monthRoman}/${now.getFullYear()}`;
+  const autoNumber = `${String(count + 1).padStart(3, "0")}/KGB/UGJ/${monthRoman}/${now.getFullYear()}`;
 
   await prisma.incrementRequest.update({
     where: { id },

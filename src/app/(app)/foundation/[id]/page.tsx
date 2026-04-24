@@ -42,7 +42,7 @@ export default async function FoundationDetailPage({
   const countIssued = await prisma.incrementRequest.count({
     where: { status: "ISSUED", issuedAt: { gte: new Date(now.getFullYear(), 0, 1) } },
   });
-  const suggestedDecree = `${String(countIssued + 1).padStart(3, "0")}/SK.KGB/UGM/${monthRoman}/${now.getFullYear()}`;
+  const suggestedDecree = `${String(countIssued + 1).padStart(3, "0")}/SK.KGB/UGJ/${monthRoman}/${now.getFullYear()}`;
 
   return (
     <div className="space-y-5">
