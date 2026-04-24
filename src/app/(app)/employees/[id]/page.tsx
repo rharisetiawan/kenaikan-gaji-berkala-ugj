@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { requireRole } from "@/lib/auth";
 import { loadEmployeeWithDetails } from "@/lib/employees";
 import { evaluateEligibility, humanEligibilityStatus, humanRating } from "@/lib/eligibility";
 import { formatDateID, formatRupiah, formatServiceLength } from "@/lib/format";
@@ -15,6 +16,7 @@ export default async function EmployeeDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireRole(["ADMIN", "HR"]);
   const { id } = await params;
   const employee = await loadEmployeeWithDetails(id);
   if (!employee) notFound();

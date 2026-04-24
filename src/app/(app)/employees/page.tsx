@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { requireRole } from "@/lib/auth";
 import { loadAllEmployeesWithDetails, evaluateAll } from "@/lib/employees";
 import { formatDateID, formatRupiah, formatServiceLength } from "@/lib/format";
 import { humanEligibilityStatus } from "@/lib/eligibility";
@@ -10,6 +11,7 @@ export default async function EmployeesPage({
 }: {
   searchParams: Promise<{ type?: string; q?: string }>;
 }) {
+  await requireRole(["ADMIN", "HR"]);
   const params = await searchParams;
   const typeFilter = params.type === "DOSEN" || params.type === "STAFF" ? params.type : undefined;
   const q = (params.q ?? "").trim().toLowerCase();

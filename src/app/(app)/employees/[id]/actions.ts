@@ -120,67 +120,73 @@ export async function issueIncrementAction(
     const signedByPosition = reqString(formData, "signedByPosition");
     const reason = optString(formData, "reason") ?? "Kenaikan Gaji Berkala Reguler.";
     const newSalaryInput = formData.get("newSalary");
-    const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
-    if (!employee) return { error: "Pegawai tidak ditemukan." };
-
-    // Block direct issuance if an IncrementRequest for this employee is in
-    // flight — letting both paths mutate salary concurrently can produce
-    // inconsistent history records and may even regress the employee's pay.
-    const activeRequest = await prisma.incrementRequest.findFirst({
-      where: {
-        employeeId,
-        status: {
-          in: ["SUBMITTED", "HR_VERIFIED", "RECTOR_SIGNED", "FOUNDATION_APPROVED"],
-        },
-      },
-    });
-    if (activeRequest) {
-      return {
-        error:
-          "Pegawai memiliki pengajuan KGB yang sedang diproses. Selesaikan lewat alur portal (HR / Rektor / Yayasan) atau batalkan pengajuan sebelum menerbitkan SK langsung.",
-      };
-    }
-
-    const incrementAmount = computeIncrementAmount(employee.currentBaseSalary);
-    const newSalary =
+    const manualNewSalary =
       typeof newSalaryInput === "string" && newSalaryInput.trim()
         ? reqNumber(formData, "newSalary")
-        : employee.currentBaseSalary + incrementAmount;
+        : null;
 
-    const finalIncrement = newSalary - employee.currentBaseSalary;
+    // Everything — active-request guard, employee read, and history write — runs
+    // inside a single Serializable transaction so neither a stale salary read
+    // nor a concurrent workflow issuance can corrupt data.
+    const record = await prisma.$transaction(
+      async (tx) => {
+        const activeRequest = await tx.incrementRequest.findFirst({
+          where: {
+            employeeId,
+            status: {
+              in: ["SUBMITTED", "HR_VERIFIED", "RECTOR_SIGNED", "FOUNDATION_APPROVED"],
+            },
+          },
+        });
+        if (activeRequest) {
+          throw new Error(
+            "Pegawai memiliki pengajuan KGB yang sedang diproses. Selesaikan lewat alur portal (HR / Rektor / Yayasan) atau batalkan pengajuan sebelum menerbitkan SK langsung.",
+          );
+        }
 
-    const record = await prisma.$transaction(async (tx) => {
-      const created = await tx.incrementHistory.create({
-        data: {
-          employeeId,
-          previousSalary: employee.currentBaseSalary,
-          newSalary,
-          incrementAmount: finalIncrement,
-          effectiveDate,
-          decreeNumber,
-          decreeDate,
-          signedByName,
-          signedByPosition,
-          reason,
-          status: "ISSUED",
-          generatedById: session?.userId ?? null,
-        },
-      });
+        const employee = await tx.employee.findUnique({ where: { id: employeeId } });
+        if (!employee) {
+          throw new Error("Pegawai tidak ditemukan.");
+        }
 
-      await tx.employee.update({
-        where: { id: employeeId },
-        data: {
-          currentBaseSalary: newSalary,
-          lastIncrementDate: effectiveDate,
-          nextIncrementDate: computeNextIncrementDate({
-            hireDate: employee.hireDate,
+        const previousSalary = employee.currentBaseSalary;
+        const defaultIncrement = computeIncrementAmount(previousSalary);
+        const newSalary = manualNewSalary ?? previousSalary + defaultIncrement;
+        const finalIncrement = newSalary - previousSalary;
+
+        const created = await tx.incrementHistory.create({
+          data: {
+            employeeId,
+            previousSalary,
+            newSalary,
+            incrementAmount: finalIncrement,
+            effectiveDate,
+            decreeNumber,
+            decreeDate,
+            signedByName,
+            signedByPosition,
+            reason,
+            status: "ISSUED",
+            generatedById: session?.userId ?? null,
+          },
+        });
+
+        await tx.employee.update({
+          where: { id: employeeId },
+          data: {
+            currentBaseSalary: newSalary,
             lastIncrementDate: effectiveDate,
-          }),
-        },
-      });
+            nextIncrementDate: computeNextIncrementDate({
+              hireDate: employee.hireDate,
+              lastIncrementDate: effectiveDate,
+            }),
+          },
+        });
 
-      return created;
-    });
+        return created;
+      },
+      { isolationLevel: "Serializable" },
+    );
 
     revalidatePath(`/employees/${employeeId}`);
     revalidatePath("/dashboard");

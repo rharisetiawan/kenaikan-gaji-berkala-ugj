@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { requireRole } from "@/lib/auth";
 import { loadAllEmployeesWithDetails, evaluateAll } from "@/lib/employees";
 import { formatDateID } from "@/lib/format";
 import { humanEligibilityStatus } from "@/lib/eligibility";
@@ -6,6 +7,7 @@ import { humanEligibilityStatus } from "@/lib/eligibility";
 export const dynamic = "force-dynamic";
 
 export default async function EvaluationsPage() {
+  await requireRole(["ADMIN", "HR"]);
   const today = new Date();
   const employees = await loadAllEmployeesWithDetails();
   const evaluations = evaluateAll(employees, today);

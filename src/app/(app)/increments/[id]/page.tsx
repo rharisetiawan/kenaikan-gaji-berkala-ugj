@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { formatDateID, formatLongDateID, formatRupiah, terbilangRupiah } from "@/lib/format";
 
@@ -10,6 +11,7 @@ export default async function IncrementDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireRole(["ADMIN", "HR", "RECTOR", "FOUNDATION"]);
   const { id } = await params;
   const record = await prisma.incrementHistory.findUnique({
     where: { id },

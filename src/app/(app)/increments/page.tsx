@@ -1,10 +1,12 @@
 import Link from "next/link";
+import { requireRole } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { formatDateID, formatRupiah } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
 export default async function IncrementsPage() {
+  await requireRole(["ADMIN", "HR", "RECTOR", "FOUNDATION"]);
   const records = await prisma.incrementHistory.findMany({
     orderBy: { effectiveDate: "desc" },
     include: { employee: true },
