@@ -4,7 +4,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
-import { computeIncrementAmount, computeNextIncrementDate } from "@/lib/eligibility";
+import {
+  computeIncrementAmount,
+  computeNextIncrementDate,
+  DOSEN_REQUIRED_BKD_PASSES,
+} from "@/lib/eligibility";
 import { saveUpload } from "@/lib/uploads";
 import { requiredDocumentsFor, workflowEnabledFor } from "@/lib/requests";
 import type { DocumentKind, IncrementRequestStatus } from "@prisma/client";
@@ -62,11 +66,13 @@ export async function submitIncrementRequestAction(formData: FormData): Promise<
       if (a.academicYear !== b.academicYear) return a.academicYear < b.academicYear ? 1 : -1;
       return a.semester < b.semester ? 1 : -1;
     });
-    const latest = sortedBkd.slice(0, 2);
-    const allPassed = latest.length === 2 && latest.every((b) => b.status === "PASS");
+    const latest = sortedBkd.slice(0, DOSEN_REQUIRED_BKD_PASSES);
+    const allPassed =
+      latest.length === DOSEN_REQUIRED_BKD_PASSES &&
+      latest.every((b) => b.status === "PASS");
     if (!allPassed) {
       throw new Error(
-        "Pengajuan diblokir: BKD 2 semester terakhir belum lulus. Selesaikan BKD sebelum mengajukan KGB.",
+        `Pengajuan diblokir: BKD ${DOSEN_REQUIRED_BKD_PASSES} semester terakhir belum lulus. Selesaikan BKD sebelum mengajukan KGB.`,
       );
     }
   }
