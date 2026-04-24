@@ -129,6 +129,25 @@ function isBlobUrl(storedPath: string): boolean {
 }
 
 /**
+ * Strict allowlist of hostnames we're willing to issue an outbound `fetch()`
+ * to when re-reading a stored upload. Vercel Blob URLs are served from
+ * `<store-id>.public.blob.vercel-storage.com`; any other host (especially
+ * internal metadata endpoints like `169.254.169.254` or private RFC1918
+ * addresses) must be rejected as a defense-in-depth measure against DB
+ * tampering / SSRF. Callers are already auth-gated, but we still refuse to
+ * fetch arbitrary URLs even for authenticated HR/ADMIN users.
+ */
+function isTrustedBlobHost(storedPath: string): boolean {
+  let host: string;
+  try {
+    host = new URL(storedPath).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  return /^[a-z0-9-]+\.public\.blob\.vercel-storage\.com$/.test(host);
+}
+
+/**
  * Return the absolute local disk path for a stored upload. Only valid when
  * `storedPath` is NOT a Vercel Blob URL — callers should branch on
  * `isBlobUrl` first or use `readStoredUpload`.
@@ -156,6 +175,9 @@ export async function readStoredUpload(
   storedPath: string,
 ): Promise<StoredUploadResult> {
   if (isBlobUrl(storedPath)) {
+    if (!isTrustedBlobHost(storedPath)) {
+      throw new Error("Blob URL host tidak dikenali.");
+    }
     const res = await fetch(storedPath, { cache: "no-store" });
     if (!res.ok) {
       throw new Error(`Blob fetch failed (${res.status})`);
