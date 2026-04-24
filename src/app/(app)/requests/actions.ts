@@ -322,67 +322,70 @@ export async function foundationIssueSkAction(formData: FormData): Promise<void>
   const signedByName = (formData.get("signedByName") as string).toString();
   const signedByPosition = (formData.get("signedByPosition") as string).toString();
 
-  const req = await loadRequestOrThrow(id);
-  assertTransition(req.status, ["FOUNDATION_APPROVED"]);
+  // All guards + writes must run inside a Serializable transaction to avoid
+  // double-issuing the SK. Two concurrent Foundation calls (double-click or
+  // two reviewers) could otherwise both read the request as FOUNDATION_APPROVED
+  // before either transaction commits, resulting in a phantom IncrementHistory
+  // and an inflated salary. Recompute salary from the live employee row inside
+  // the transaction (the request snapshot is audit-only).
+  await prisma.$transaction(
+    async (tx) => {
+      const freshReq = await tx.incrementRequest.findUnique({ where: { id } });
+      if (!freshReq) throw new Error("Pengajuan tidak ditemukan.");
+      assertTransition(freshReq.status, ["FOUNDATION_APPROVED"]);
 
-  const effectiveDate = req.projectedEffectiveDate;
+      const effectiveDate = freshReq.projectedEffectiveDate;
 
-  // Salary numbers are recomputed from the live employee row inside the
-  // transaction rather than trusting the request snapshot. The snapshot was
-  // taken at submission time; if the employee's salary was updated via the
-  // direct admin path in the meantime, blindly overwriting with
-  // `req.projectedNewSalary` could corrupt history or regress the employee's
-  // pay. The snapshot is kept on the request for audit; the history record
-  // reflects what actually happened.
-  await prisma.$transaction(async (tx) => {
-    const freshEmp = await tx.employee.findUnique({ where: { id: req.employeeId } });
-    if (!freshEmp) {
-      throw new Error("Pegawai tidak ditemukan saat menerbitkan SK.");
-    }
-    const previousSalary = freshEmp.currentBaseSalary;
-    const incrementAmount = computeIncrementAmount(previousSalary);
-    const newSalary = previousSalary + incrementAmount;
+      const freshEmp = await tx.employee.findUnique({ where: { id: freshReq.employeeId } });
+      if (!freshEmp) {
+        throw new Error("Pegawai tidak ditemukan saat menerbitkan SK.");
+      }
+      const previousSalary = freshEmp.currentBaseSalary;
+      const incrementAmount = computeIncrementAmount(previousSalary);
+      const newSalary = previousSalary + incrementAmount;
 
-    const history = await tx.incrementHistory.create({
-      data: {
-        employeeId: freshEmp.id,
-        previousSalary,
-        newSalary,
-        incrementAmount,
-        effectiveDate,
-        decreeNumber: decreeNumberInput,
-        decreeDate: new Date(decreeDateInput),
-        signedByName,
-        signedByPosition,
-        reason: req.employeeNotes ?? "Kenaikan Gaji Berkala reguler.",
-        status: "ISSUED",
-        generatedById: session.userId,
-      },
-    });
-    await tx.incrementRequest.update({
-      where: { id },
-      data: {
-        status: "ISSUED",
-        decreeNumber: decreeNumberInput,
-        decreeDate: new Date(decreeDateInput),
-        signedByName,
-        signedByPosition,
-        issuedAt: new Date(),
-        incrementHistoryId: history.id,
-      },
-    });
-    await tx.employee.update({
-      where: { id: freshEmp.id },
-      data: {
-        currentBaseSalary: newSalary,
-        lastIncrementDate: effectiveDate,
-        nextIncrementDate: computeNextIncrementDate({
-          hireDate: freshEmp.hireDate,
+      const history = await tx.incrementHistory.create({
+        data: {
+          employeeId: freshEmp.id,
+          previousSalary,
+          newSalary,
+          incrementAmount,
+          effectiveDate,
+          decreeNumber: decreeNumberInput,
+          decreeDate: new Date(decreeDateInput),
+          signedByName,
+          signedByPosition,
+          reason: freshReq.employeeNotes ?? "Kenaikan Gaji Berkala reguler.",
+          status: "ISSUED",
+          generatedById: session.userId,
+        },
+      });
+      await tx.incrementRequest.update({
+        where: { id },
+        data: {
+          status: "ISSUED",
+          decreeNumber: decreeNumberInput,
+          decreeDate: new Date(decreeDateInput),
+          signedByName,
+          signedByPosition,
+          issuedAt: new Date(),
+          incrementHistoryId: history.id,
+        },
+      });
+      await tx.employee.update({
+        where: { id: freshEmp.id },
+        data: {
+          currentBaseSalary: newSalary,
           lastIncrementDate: effectiveDate,
-        }),
-      },
-    });
-  });
+          nextIncrementDate: computeNextIncrementDate({
+            hireDate: freshEmp.hireDate,
+            lastIncrementDate: effectiveDate,
+          }),
+        },
+      });
+    },
+    { isolationLevel: "Serializable" },
+  );
 
   revalidatePath("/foundation");
   revalidatePath("/dashboard");
