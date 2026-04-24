@@ -1,0 +1,213 @@
+// Prisma schema for "Kenaikan Gaji Berkala" (Periodic Salary Increment)
+// Universitas Gajayana
+//
+// Convention: all model, field, and enum identifiers are in English.
+// Human-facing labels (UI / PDF content) live in the Indonesian locale files.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// -----------------------------------------------------------------------------
+// Auth
+// -----------------------------------------------------------------------------
+
+enum UserRole {
+  ADMIN
+  HR
+  VIEWER
+}
+
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  passwordHash   String
+  name           String
+  role           UserRole @default(HR)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  generatedDecrees IncrementHistory[] @relation("GeneratedBy")
+}
+
+// -----------------------------------------------------------------------------
+// Reference tables
+// -----------------------------------------------------------------------------
+
+// Jabatan Akademik for Dosen
+enum AcademicRankCode {
+  ASISTEN_AHLI
+  LEKTOR
+  LEKTOR_KEPALA
+  GURU_BESAR
+}
+
+model AcademicRank {
+  id                 Int              @id @default(autoincrement())
+  code               AcademicRankCode @unique
+  name               String           // Indonesian display name, e.g. "Lektor Kepala"
+  minServiceYears    Int              // minimum cumulative service years expected
+  functionalAllowance Int             // tunjangan jabatan (IDR)
+  dosenDetails       DosenDetail[]
+}
+
+// Golongan for Tenaga Kependidikan (e.g. III/a, III/b, IV/a ...)
+model PayGrade {
+  id            Int           @id @default(autoincrement())
+  code          String        @unique // e.g. "III/a"
+  name          String        // Indonesian display name e.g. "Penata Muda"
+  baseSalary    Int           // gaji pokok (IDR)
+  level         Int           // order within the grade ladder for comparisons
+  staffDetails  StaffDetail[]
+}
+
+// -----------------------------------------------------------------------------
+// Employee
+// -----------------------------------------------------------------------------
+
+enum EmployeeType {
+  DOSEN
+  STAFF
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  ON_LEAVE
+  RETIRED
+  RESIGNED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+model Employee {
+  id                  String          @id @default(cuid())
+  nip                 String          @unique // Nomor Induk Pegawai
+  fullName            String
+  gender              Gender
+  birthDate           DateTime
+  email               String?         @unique
+  phone               String?
+  address             String?
+  type                EmployeeType
+  hireDate            DateTime        // Tanggal Mulai Kerja (TMT)
+  currentBaseSalary   Int             // gaji pokok berjalan (IDR)
+  lastIncrementDate   DateTime?       // TMT kenaikan terakhir
+  nextIncrementDate   DateTime        // projected next TMT (computed at write time)
+  status              EmployeeStatus  @default(ACTIVE)
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  dosenDetail         DosenDetail?
+  staffDetail         StaffDetail?
+  bkdEvaluations      BkdEvaluation[]
+  performanceScores   PerformanceScore[]
+  incrementHistory    IncrementHistory[]
+}
+
+model DosenDetail {
+  id               String       @id @default(cuid())
+  employee         Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId       String       @unique
+  nidn             String       @unique
+  academicRank     AcademicRank @relation(fields: [academicRankId], references: [id])
+  academicRankId   Int
+  lastRankDate     DateTime?    // TMT jabatan akademik terakhir
+  faculty          String
+  studyProgram     String
+}
+
+model StaffDetail {
+  id            String    @id @default(cuid())
+  employee      Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId    String    @unique
+  payGrade      PayGrade  @relation(fields: [payGradeId], references: [id])
+  payGradeId    Int
+  lastGradeDate DateTime? // TMT golongan saat ini
+  unit          String    // unit kerja / bagian
+  position      String    // jabatan struktural / fungsional (non-akademik)
+}
+
+// -----------------------------------------------------------------------------
+// Evaluations
+// -----------------------------------------------------------------------------
+
+enum BkdStatus {
+  PASS
+  FAIL
+  PENDING
+}
+
+model BkdEvaluation {
+  id          String    @id @default(cuid())
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId  String
+  academicYear String   // e.g. "2024/2025"
+  semester    String    // "GANJIL" or "GENAP"
+  sksLoad     Float     // beban SKS ekuivalen
+  status      BkdStatus @default(PENDING)
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([employeeId, academicYear, semester])
+}
+
+enum PerformanceRating {
+  EXCELLENT   // Sangat Baik
+  GOOD        // Baik
+  SUFFICIENT  // Cukup
+  POOR        // Kurang
+  VERY_POOR   // Sangat Kurang
+}
+
+model PerformanceScore {
+  id          String            @id @default(cuid())
+  employee    Employee          @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId  String
+  year        Int
+  score       Float             // 0 - 100
+  rating      PerformanceRating
+  notes       String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@unique([employeeId, year])
+}
+
+// -----------------------------------------------------------------------------
+// Increment history (audit trail + SK records)
+// -----------------------------------------------------------------------------
+
+enum IncrementStatus {
+  PENDING
+  APPROVED
+  ISSUED
+  REJECTED
+}
+
+model IncrementHistory {
+  id               String           @id @default(cuid())
+  employee         Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId       String
+  previousSalary   Int
+  newSalary        Int
+  incrementAmount  Int
+  effectiveDate    DateTime         // TMT berlaku
+  decreeNumber     String?          @unique // nomor SK
+  decreeDate       DateTime?        // tanggal SK
+  signedByName     String?          // nama penandatangan
+  signedByPosition String?          // jabatan penandatangan
+  reason           String?          // catatan / dasar
+  status           IncrementStatus  @default(PENDING)
+  generatedBy      User?            @relation("GeneratedBy", fields: [generatedById], references: [id])
+  generatedById    String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+}
