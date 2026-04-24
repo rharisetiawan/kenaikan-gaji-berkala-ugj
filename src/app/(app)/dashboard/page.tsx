@@ -12,7 +12,20 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const session = await requireUser();
   // Route employees and review-only roles straight to their dedicated portals.
-  if (session.role === "EMPLOYEE") redirect("/my-requests");
+  if (session.role === "EMPLOYEE") {
+    // KONTRAK / HONORER have no KGB rights — route them to the contract
+    // renewal hub instead of /my-requests (which would just show "KGB tidak
+    // berlaku" and no actionable state).
+    const dbUser = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { employee: { select: { employmentStatus: true } } },
+    });
+    const empStatus = dbUser?.employee?.employmentStatus;
+    if (empStatus === "KONTRAK" || empStatus === "HONORER") {
+      redirect("/kontrak");
+    }
+    redirect("/my-requests");
+  }
   if (session.role === "RECTOR") redirect("/rector");
   if (session.role === "FOUNDATION") redirect("/foundation");
 
