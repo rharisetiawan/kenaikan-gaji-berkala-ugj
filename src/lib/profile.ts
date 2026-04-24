@@ -23,9 +23,14 @@ export const COMMON_PROFILE_FIELDS = [
 ] as const;
 
 // Extra fields required for Dosen (akreditasi research identifiers).
-// NIDN is enforced at onboarding so it is not included here; Scopus/SINTA/ORCID
-// are typically missing and need to be nagged via kelengkapan data.
-export const DOSEN_PROFILE_FIELDS = ["scopusId", "sintaId", "orcid"] as const;
+// NIDN is enforced at onboarding so it is not included here; Scopus/SINTA/ORCID/
+// Google Scholar are typically missing and need to be nagged via kelengkapan data.
+export const DOSEN_PROFILE_FIELDS = [
+  "scopusId",
+  "sintaId",
+  "orcid",
+  "googleScholarId",
+] as const;
 
 type CommonField = (typeof COMMON_PROFILE_FIELDS)[number];
 type DosenField = (typeof DOSEN_PROFILE_FIELDS)[number];
@@ -60,7 +65,10 @@ export function computeProfileCompleteness(
     | "emergencyContact"
     | "type"
   >,
-  dosenDetail: Pick<DosenDetail, "scopusId" | "sintaId" | "orcid"> | null,
+  dosenDetail: Pick<
+    DosenDetail,
+    "scopusId" | "sintaId" | "orcid" | "googleScholarId"
+  > | null,
 ): ProfileCompleteness {
   const missingFields: ProfileFieldKey[] = [];
   const commonValues: Record<CommonField, unknown> = {
@@ -84,6 +92,7 @@ export function computeProfileCompleteness(
       scopusId: dosenDetail?.scopusId ?? null,
       sintaId: dosenDetail?.sintaId ?? null,
       orcid: dosenDetail?.orcid ?? null,
+      googleScholarId: dosenDetail?.googleScholarId ?? null,
     };
     for (const key of DOSEN_PROFILE_FIELDS) {
       if (!isFilled(dosenValues[key])) missingFields.push(key);
@@ -120,6 +129,8 @@ export function humanProfileField(key: ProfileFieldKey): string {
       return "SINTA ID";
     case "orcid":
       return "ORCID";
+    case "googleScholarId":
+      return "Google Scholar ID";
   }
 }
 
