@@ -150,27 +150,50 @@ export async function hrVerifyAction(formData: FormData): Promise<void> {
   const req = await loadRequestOrThrow(id);
   assertTransition(req.status, ["SUBMITTED"]);
 
-  // Default cover letter number if HR didn't supply one.
+  // Default cover letter number if HR didn't supply one. The count+update is
+  // wrapped in a Serializable transaction with bounded retry so two concurrent
+  // HR verifications can't produce the same auto-number and trigger a unique
+  // constraint violation on `coverLetterNumber`.
   const now = new Date();
   const monthRoman = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"][
     now.getMonth()
   ];
-  const count = await prisma.incrementRequest.count({
-    where: { coverLetterDate: { gte: new Date(now.getFullYear(), 0, 1) } },
-  });
-  const autoNumber = `${String(count + 1).padStart(3, "0")}/KGB/UGJ/${monthRoman}/${now.getFullYear()}`;
-
-  await prisma.incrementRequest.update({
-    where: { id },
-    data: {
-      status: "HR_VERIFIED",
-      hrReviewedAt: now,
-      hrReviewedById: session.userId,
-      hrNotes: notes,
-      coverLetterNumber: coverLetterNumberInput?.trim() || autoNumber,
-      coverLetterDate: now,
-    },
-  });
+  const manualNumber = coverLetterNumberInput?.trim() || null;
+  const startOfYear = new Date(now.getFullYear(), 0, 1);
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      await prisma.$transaction(
+        async (tx) => {
+          let numberToUse = manualNumber;
+          if (!numberToUse) {
+            const count = await tx.incrementRequest.count({
+              where: { coverLetterDate: { gte: startOfYear } },
+            });
+            numberToUse = `${String(count + 1 + attempt).padStart(3, "0")}/KGB/UGJ/${monthRoman}/${now.getFullYear()}`;
+          }
+          await tx.incrementRequest.update({
+            where: { id },
+            data: {
+              status: "HR_VERIFIED",
+              hrReviewedAt: now,
+              hrReviewedById: session.userId,
+              hrNotes: notes,
+              coverLetterNumber: numberToUse,
+              coverLetterDate: now,
+            },
+          });
+        },
+        { isolationLevel: "Serializable" },
+      );
+      lastError = null;
+      break;
+    } catch (err) {
+      lastError = err;
+      if (manualNumber) throw err; // Manual number collision is a user error, not a retry case.
+    }
+  }
+  if (lastError) throw lastError;
 
   revalidatePath("/hr");
   revalidatePath("/rector");
@@ -302,18 +325,30 @@ export async function foundationIssueSkAction(formData: FormData): Promise<void>
   const req = await loadRequestOrThrow(id);
   assertTransition(req.status, ["FOUNDATION_APPROVED"]);
 
-  const emp = req.employee;
   const effectiveDate = req.projectedEffectiveDate;
-  const newSalary = req.projectedNewSalary;
-  const increment = req.incrementAmount;
 
+  // Salary numbers are recomputed from the live employee row inside the
+  // transaction rather than trusting the request snapshot. The snapshot was
+  // taken at submission time; if the employee's salary was updated via the
+  // direct admin path in the meantime, blindly overwriting with
+  // `req.projectedNewSalary` could corrupt history or regress the employee's
+  // pay. The snapshot is kept on the request for audit; the history record
+  // reflects what actually happened.
   await prisma.$transaction(async (tx) => {
+    const freshEmp = await tx.employee.findUnique({ where: { id: req.employeeId } });
+    if (!freshEmp) {
+      throw new Error("Pegawai tidak ditemukan saat menerbitkan SK.");
+    }
+    const previousSalary = freshEmp.currentBaseSalary;
+    const incrementAmount = computeIncrementAmount(previousSalary);
+    const newSalary = previousSalary + incrementAmount;
+
     const history = await tx.incrementHistory.create({
       data: {
-        employeeId: emp.id,
-        previousSalary: emp.currentBaseSalary,
+        employeeId: freshEmp.id,
+        previousSalary,
         newSalary,
-        incrementAmount: increment,
+        incrementAmount,
         effectiveDate,
         decreeNumber: decreeNumberInput,
         decreeDate: new Date(decreeDateInput),
@@ -337,12 +372,12 @@ export async function foundationIssueSkAction(formData: FormData): Promise<void>
       },
     });
     await tx.employee.update({
-      where: { id: emp.id },
+      where: { id: freshEmp.id },
       data: {
         currentBaseSalary: newSalary,
         lastIncrementDate: effectiveDate,
         nextIncrementDate: computeNextIncrementDate({
-          hireDate: emp.hireDate,
+          hireDate: freshEmp.hireDate,
           lastIncrementDate: effectiveDate,
         }),
       },

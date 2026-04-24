@@ -123,6 +123,24 @@ export async function issueIncrementAction(
     const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
     if (!employee) return { error: "Pegawai tidak ditemukan." };
 
+    // Block direct issuance if an IncrementRequest for this employee is in
+    // flight — letting both paths mutate salary concurrently can produce
+    // inconsistent history records and may even regress the employee's pay.
+    const activeRequest = await prisma.incrementRequest.findFirst({
+      where: {
+        employeeId,
+        status: {
+          in: ["SUBMITTED", "HR_VERIFIED", "RECTOR_SIGNED", "FOUNDATION_APPROVED"],
+        },
+      },
+    });
+    if (activeRequest) {
+      return {
+        error:
+          "Pegawai memiliki pengajuan KGB yang sedang diproses. Selesaikan lewat alur portal (HR / Rektor / Yayasan) atau batalkan pengajuan sebelum menerbitkan SK langsung.",
+      };
+    }
+
     const incrementAmount = computeIncrementAmount(employee.currentBaseSalary);
     const newSalary =
       typeof newSalaryInput === "string" && newSalaryInput.trim()
