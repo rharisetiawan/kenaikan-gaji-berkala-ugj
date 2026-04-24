@@ -20,6 +20,7 @@ import type {
   User,
 } from "@prisma/client";
 import { formatDateID, formatLongDateID } from "@/lib/format";
+import { computeNextGolongan } from "@/lib/eligibility";
 
 type IncrementWithRelations = IncrementHistory & {
   employee: Employee & {
@@ -87,6 +88,17 @@ export function SuratKeputusanDocument({ record }: { record: IncrementWithRelati
     emp.type === "DOSEN"
       ? emp.dosenDetail?.academicRank.name ?? "-"
       : `${emp.staffDetail?.payGrade.name ?? "-"} / ${emp.staffDetail?.payGrade.code ?? "-"}`;
+  // Gol. Baru (item 11): advance the letter within the same roman level;
+  // stops at "/d" (see computeNextGolongan). Dosen is printed as-is.
+  const golLabelBaru =
+    emp.type === "DOSEN"
+      ? golLabel
+      : (() => {
+          const baseCode = emp.staffDetail?.payGrade.code ?? null;
+          const nextCode = computeNextGolongan(baseCode);
+          if (!nextCode || !emp.staffDetail?.payGrade.name) return golLabel;
+          return `${emp.staffDetail.payGrade.name} / ${nextCode}`;
+        })();
   const unitLine =
     emp.type === "DOSEN"
       ? `${emp.dosenDetail?.faculty ?? "-"} / ${emp.dosenDetail?.studyProgram ?? "-"}`
@@ -173,7 +185,7 @@ export function SuratKeputusanDocument({ record }: { record: IncrementWithRelati
 
         <NumRow no="09." label="Gaji Pokok Baru" value={`Rp. ${formatRupiahPlain(record.newSalary)}`} />
         <NumRow no="10." label="Berdasarkan masa kerja" value={masaBaru.toUpperCase()} />
-        <NumRow no="11." label="Dalam Pangkat/Gol." value={golLabel.toUpperCase()} />
+        <NumRow no="11." label="Dalam Pangkat/Gol." value={golLabelBaru.toUpperCase()} />
         <NumRow
           no="12."
           label="Mulai tanggal"

@@ -16,6 +16,7 @@ import type {
 } from "@prisma/client";
 import { formatDateID, formatRupiah } from "@/lib/format";
 import { monthsOverdue } from "@/lib/rapel";
+import { computeNextGolongan } from "@/lib/eligibility";
 
 type RequestWithRelations = IncrementRequest & {
   employee: Employee & {
@@ -120,8 +121,13 @@ export function SuratPengantarDocument({ record }: { record: RequestWithRelation
     emp.type === "DOSEN"
       ? emp.dosenDetail?.academicRank.name ?? "-"
       : emp.staffDetail?.payGrade.code ?? "-";
-  // For now "Gol Baru" = "Gol Lama" — the increment is within the same golongan.
-  const golBaru = golLama;
+  // KGB advances the golongan letter (a→b→c→d) every 2 years within the
+  // same roman numeral (golongan "level"). At "d" it stops — cross-level
+  // promotion (II→III) requires a separate "kenaikan pangkat" flow based on
+  // a new academic degree and is out of scope here. For Dosen entries,
+  // academicRank.name isn't a golongan ladder, so we print "-" for now.
+  const golBaru =
+    emp.type === "DOSEN" ? "-" : computeNextGolongan(golLama) ?? golLama;
   const rapelMonths = monthsOverdue(record.projectedEffectiveDate);
   const masaKerja = masaKerjaFrom(emp.hireDate, new Date());
 

@@ -66,6 +66,26 @@ export function computeIncrementAmount(currentBaseSalary: number): number {
   return Math.round(raw / 100) * 100;
 }
 
+/**
+ * Given a current golongan code like "II/c", return the next KGB golongan:
+ *   - II/a → II/b, II/b → II/c, II/c → II/d
+ *   - II/d → II/d (mentok — a KGB within-golongan does not bump the roman;
+ *     cross-roman promotion (II → III) requires a separate "kenaikan pangkat"
+ *     process based on a new academic degree and is out of scope for this
+ *     automatic periodic-increment flow.)
+ * Accepts either "II/c" (canonical) or "II-C" (legacy) and returns the canonical form.
+ */
+export function computeNextGolongan(code: string | null | undefined): string | null {
+  if (!code) return null;
+  const m = code.trim().match(/^([IVX]+)[\/-]?([a-dA-D])$/);
+  if (!m) return code;
+  const roman = m[1].toUpperCase();
+  const letter = m[2].toLowerCase();
+  if (letter === "d") return `${roman}/d`;
+  const next = String.fromCharCode(letter.charCodeAt(0) + 1);
+  return `${roman}/${next}`;
+}
+
 export function evaluateEligibility(
   employee: EmployeeWithDetails,
   today: Date = new Date(),

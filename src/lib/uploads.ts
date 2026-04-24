@@ -12,6 +12,32 @@ export const UPLOAD_ROOT = path.join(process.cwd(), "uploads");
 
 const SAFE_EXT = /\.(pdf|png|jpg|jpeg|webp|docx?|xlsx?)$/i;
 
+/**
+ * Server-side allowlist of MIME types keyed by file extension. The
+ * client-provided `File.type` is NOT trusted — an attacker could upload an
+ * HTML/JavaScript payload with a `.pdf` extension and a spoofed
+ * `Content-Type: text/html`. Using this map when we both *store* and *serve*
+ * uploads ensures the browser never renders untrusted content as HTML in our
+ * origin.
+ */
+export const SAFE_MIME_BY_EXT: Record<string, string> = {
+  ".pdf": "application/pdf",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".doc": "application/msword",
+  ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".xls": "application/vnd.ms-excel",
+  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+};
+
+export function safeMimeFor(fileName: string): string {
+  const m = fileName.toLowerCase().match(SAFE_EXT);
+  if (!m) return "application/octet-stream";
+  return SAFE_MIME_BY_EXT[m[0]] ?? "application/octet-stream";
+}
+
 function sanitizeName(name: string): string {
   return name.replace(/[^\w.\-]+/g, "_").slice(0, 120);
 }
@@ -60,7 +86,10 @@ export async function saveUpload(
   return {
     storedPath: `${requestId}/${fileName}`,
     originalName,
-    mimeType: file.type || "application/octet-stream",
+    // Derive from the validated extension — never trust `file.type` because
+    // the client can spoof it (e.g. .pdf with text/html to trigger stored XSS
+    // when served inline).
+    mimeType: safeMimeFor(fileName),
     sizeBytes: file.size,
   };
 }

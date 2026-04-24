@@ -92,20 +92,29 @@ export async function submitIncrementRequestAction(formData: FormData): Promise<
     { isolationLevel: "Serializable" },
   );
 
-  for (const kind of required) {
-    const file = formData.get(`doc_${kind}`) as File;
-    const saved = await saveUpload(file, request.id, kind);
-    await prisma.requestDocument.create({
-      data: {
-        requestId: request.id,
-        kind: kind as DocumentKind,
-        originalName: saved.originalName,
-        storedPath: saved.storedPath,
-        mimeType: saved.mimeType,
-        sizeBytes: saved.sizeBytes,
-        uploadedById: session.userId,
-      },
-    });
+  // File writes aren't transactional. If any upload or DB insert fails after
+  // the IncrementRequest row was created, roll back the row so the employee
+  // can resubmit (without hitting the duplicate-active-request guard).
+  try {
+    for (const kind of required) {
+      const file = formData.get(`doc_${kind}`) as File;
+      const saved = await saveUpload(file, request.id, kind);
+      await prisma.requestDocument.create({
+        data: {
+          requestId: request.id,
+          kind: kind as DocumentKind,
+          originalName: saved.originalName,
+          storedPath: saved.storedPath,
+          mimeType: saved.mimeType,
+          sizeBytes: saved.sizeBytes,
+          uploadedById: session.userId,
+        },
+      });
+    }
+  } catch (err) {
+    await prisma.requestDocument.deleteMany({ where: { requestId: request.id } });
+    await prisma.incrementRequest.delete({ where: { id: request.id } }).catch(() => {});
+    throw err;
   }
 
   revalidatePath("/my-requests");
