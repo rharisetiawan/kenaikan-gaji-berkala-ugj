@@ -1,14 +1,32 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { loadAllEmployeesWithDetails, evaluateAll } from "@/lib/employees";
 import { formatDateID, formatRupiah } from "@/lib/format";
 import { humanEligibilityStatus } from "@/lib/eligibility";
+import { requireUser } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { humanRequestStatus, requestStatusColor } from "@/lib/requests";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
+  const session = await requireUser();
+  // Route employees and review-only roles straight to their dedicated portals.
+  if (session.role === "EMPLOYEE") redirect("/my-requests");
+  if (session.role === "RECTOR") redirect("/rector");
+  if (session.role === "FOUNDATION") redirect("/foundation");
+
   const today = new Date();
   const employees = await loadAllEmployeesWithDetails();
   const evaluations = evaluateAll(employees, today);
+  const activeRequests = await prisma.incrementRequest.findMany({
+    where: {
+      status: { in: ["SUBMITTED", "HR_VERIFIED", "RECTOR_SIGNED", "FOUNDATION_APPROVED"] },
+    },
+    include: { employee: true },
+    orderBy: { updatedAt: "desc" },
+    take: 8,
+  });
 
   const dosenCount = employees.filter((e) => e.type === "DOSEN").length;
   const staffCount = employees.filter((e) => e.type === "STAFF").length;
@@ -124,6 +142,47 @@ export default async function DashboardPage() {
             </tbody>
           </table>
         </div>
+      </section>
+
+      <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">
+              Pengajuan KGB Aktif Terbaru
+            </h2>
+            <p className="text-xs text-slate-500">
+              Alur persetujuan Pegawai → Kepegawaian → Rektor → Yayasan.
+            </p>
+          </div>
+          <Link href="/hr" className="text-sm font-medium text-[var(--brand)] hover:underline">
+            Buka antrean Kepegawaian →
+          </Link>
+        </div>
+        {activeRequests.length === 0 ? (
+          <p className="px-5 py-6 text-sm text-slate-500">Belum ada pengajuan aktif.</p>
+        ) : (
+          <ul className="divide-y divide-slate-100">
+            {activeRequests.map((r) => (
+              <li key={r.id} className="flex items-start justify-between gap-4 px-5 py-3">
+                <div>
+                  <Link href={`/hr/${r.id}`} className="font-medium text-slate-900 hover:underline">
+                    {r.employee.fullName}
+                  </Link>
+                  <p className="text-xs text-slate-500">{r.employee.nip}</p>
+                  <p className="mt-1 text-xs text-slate-600">
+                    Proyeksi: {formatRupiah(r.currentSalary)} → {formatRupiah(r.projectedNewSalary)} · TMT{" "}
+                    {formatDateID(r.projectedEffectiveDate)}
+                  </p>
+                </div>
+                <span
+                  className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium ${requestStatusColor(r.status)}`}
+                >
+                  {humanRequestStatus(r.status)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <div className="grid gap-6 lg:grid-cols-2">

@@ -101,7 +101,7 @@ export function SuratKeputusanDocument({ record }: { record: IncrementWithRelati
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
           <Text style={styles.hdrSmall}>YAYASAN PEMBINA PENDIDIKAN GAJAYANA</Text>
-          <Text style={styles.hdrBig}>UNIVERSITAS GAJAYANA</Text>
+          <Text style={styles.hdrBig}>UNIVERSITAS GAJAYANA MALANG</Text>
           <Text style={styles.hdrAddress}>
             Jalan Mertojoyo Blok L, Merjosari, Kecamatan Lowokwaru, Kota Malang, Jawa Timur
           </Text>
@@ -110,13 +110,13 @@ export function SuratKeputusanDocument({ record }: { record: IncrementWithRelati
           </Text>
         </View>
 
-        <Text style={styles.title}>KEPUTUSAN REKTOR UNIVERSITAS GAJAYANA</Text>
+        <Text style={styles.title}>KEPUTUSAN REKTOR UNIVERSITAS GAJAYANA MALANG</Text>
         <Text style={styles.subtitle}>
           TENTANG KENAIKAN GAJI BERKALA {employeeType.toUpperCase()}
         </Text>
         <Text style={styles.number}>Nomor: {record.decreeNumber ?? "-"}</Text>
 
-        <Text style={styles.sectionHeading}>REKTOR UNIVERSITAS GAJAYANA,</Text>
+        <Text style={styles.sectionHeading}>REKTOR UNIVERSITAS GAJAYANA MALANG,</Text>
 
         <Text style={styles.sectionHeading}>Menimbang:</Text>
         <View style={styles.considerItem}>
@@ -144,26 +144,26 @@ export function SuratKeputusanDocument({ record }: { record: IncrementWithRelati
         <View style={styles.considerItem}>
           <Text style={styles.considerLabel}>2.</Text>
           <Text style={{ flex: 1, textAlign: "justify" }}>
-            Peraturan Kepegawaian Universitas Gajayana tentang Penggajian Pegawai;
+            Peraturan Kepegawaian Universitas Gajayana Malang tentang Penggajian Pegawai;
           </Text>
         </View>
         <View style={styles.considerItem}>
           <Text style={styles.considerLabel}>3.</Text>
           <Text style={{ flex: 1, textAlign: "justify" }}>
-            Statuta Universitas Gajayana yang berlaku.
+            Statuta Universitas Gajayana Malang yang berlaku.
           </Text>
         </View>
 
         <Text style={styles.memutuskan}>MEMUTUSKAN</Text>
 
         <Text style={styles.paragraph}>
-          <Text style={{ fontFamily: "Helvetica-Bold" }}>Menetapkan:</Text> Keputusan Rektor Universitas Gajayana
+          <Text style={{ fontFamily: "Helvetica-Bold" }}>Menetapkan:</Text> Keputusan Rektor Universitas Gajayana Malang
           tentang Kenaikan Gaji Berkala bagi pegawai sebagaimana tersebut di bawah ini.
         </Text>
 
         <Text style={styles.sectionHeading}>KESATU:</Text>
         <Text style={styles.dictum}>
-          Memberikan Kenaikan Gaji Berkala kepada pegawai Universitas Gajayana sebagai berikut:
+          Memberikan Kenaikan Gaji Berkala kepada pegawai Universitas Gajayana Malang sebagai berikut:
         </Text>
 
         <View style={{ marginBottom: 6 }}>
@@ -210,12 +210,12 @@ export function SuratKeputusanDocument({ record }: { record: IncrementWithRelati
         <View style={styles.signBox}>
           <Text>Ditetapkan di : Malang</Text>
           <Text>Pada tanggal : {formatLongDateID(record.decreeDate)}</Text>
-          <Text style={{ marginTop: 8 }}>{record.signedByPosition ?? "Rektor Universitas Gajayana"}</Text>
+          <Text style={{ marginTop: 8 }}>{record.signedByPosition ?? "Rektor Universitas Gajayana Malang"}</Text>
           <Text style={styles.signLine}>{record.signedByName ?? "_____________________"}</Text>
         </View>
 
         <Text style={styles.footerNote}>
-          Tembusan: 1) Yth. Biro SDM UGJ; 2) Yth. Biro Keuangan UGJ; 3) Arsip. · Dokumen ini dihasilkan oleh SIM
+          Tembusan: 1) Yth. Bagian Kepegawaian UNIGA Malang; 2) Yth. Biro Keuangan UNIGA Malang; 3) Arsip. · Dokumen ini dihasilkan oleh SIM
           KGB pada {formatDateID(new Date())}.
         </Text>
       </Page>

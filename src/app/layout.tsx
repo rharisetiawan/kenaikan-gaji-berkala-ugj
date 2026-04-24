@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "SIM Kenaikan Gaji Berkala - Universitas Gajayana",
+  title: "SIM Kenaikan Gaji Berkala - Universitas Gajayana Malang",
   description:
-    "Sistem Informasi Manajemen Kenaikan Gaji Berkala Dosen dan Tenaga Kependidikan Universitas Gajayana.",
+    "Sistem Informasi Manajemen Kenaikan Gaji Berkala Dosen dan Tenaga Kependidikan Universitas Gajayana Malang.",
 };
 
 export default function RootLayout({

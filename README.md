@@ -95,10 +95,15 @@ npm run dev
 
 ### Akun Demo
 
-| Peran  | Email             | Kata Sandi |
-|--------|-------------------|------------|
-| ADMIN  | admin@ugj.ac.id   | admin123   |
-| HR     | hr@ugj.ac.id      | hr12345    |
+| Peran      | Email                           | Kata Sandi  |
+|------------|---------------------------------|-------------|
+| ADMIN      | admin@unigamalang.ac.id         | admin123    |
+| HR         | hr@unigamalang.ac.id            | hr12345     |
+| RECTOR     | rektor@unigamalang.ac.id        | rektor123   |
+| FOUNDATION | yayasan@unigamalang.ac.id       | yayasan123  |
+| EMPLOYEE   | dewi.anggraeni@unigamalang.ac.id | pegawai123 |
+
+Akun pegawai lain mengikuti pola `<nama>@unigamalang.ac.id` dengan kata sandi `pegawai123`.
 
 ## Logika Bisnis KGB (ringkasan)
 
@@ -120,8 +125,20 @@ dengan kebijakan internal universitas.
 
 - Ganti `AUTH_SECRET` dengan nilai acak yang kuat sebelum deploy produksi.
 - Hash password tersimpan dengan `bcryptjs` (cost 10).
-- Seluruh Server Action memeriksa peran (`ADMIN`/`HR`) sebelum mengubah data.
-- Rute PDF `/api/sk/[id]` memerlukan sesi valid.
+- Seluruh Server Action memeriksa peran (`ADMIN`/`HR`/`RECTOR`/`FOUNDATION`) sebelum mengubah data.
+- Rute PDF `/api/sk/[id]` dan `/api/requests/[id]/surat-pengantar.pdf` memerlukan sesi valid.
+- Berkas unggahan pegawai disimpan di direktori `uploads/` (diabaikan oleh git) dan disajikan
+  melalui `/api/documents/[id]` dengan pemeriksaan kepemilikan.
+
+## Alur Persetujuan KGB
+
+1. **Pegawai** (Dosen atau Tenaga Kependidikan) masuk ke portal `/my-requests`,
+   mengunggah SKP, SK Berkala terakhir (dan Bukti Tridharma bila Dosen), lalu mengirim pengajuan.
+2. **Bagian Kepegawaian (HR)** memverifikasi kelengkapan dokumen di `/hr`.
+   Setelah disetujui, sistem otomatis membuat **Surat Pengantar Rektor**.
+3. **Rektor** menandatangani Surat Pengantar di `/rector` dan meneruskannya ke Yayasan.
+4. **Yayasan (Foundation)** menyetujui dan menerbitkan SK Kenaikan Gaji Berkala di `/foundation`;
+   gaji pokok pegawai otomatis diperbarui.
 
 ## Lisensi
 

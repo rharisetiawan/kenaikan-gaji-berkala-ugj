@@ -58,23 +58,43 @@ async function main() {
   // Admin & HR users
   console.log("Seeding users...");
   await prisma.user.upsert({
-    where: { email: "admin@ugj.ac.id" },
+    where: { email: "admin@unigamalang.ac.id" },
     update: {},
     create: {
-      email: "admin@ugj.ac.id",
+      email: "admin@unigamalang.ac.id",
       passwordHash: await bcrypt.hash("admin123", 10),
       name: "Administrator SDM",
       role: "ADMIN",
     },
   });
   await prisma.user.upsert({
-    where: { email: "hr@ugj.ac.id" },
+    where: { email: "hr@unigamalang.ac.id" },
     update: {},
     create: {
-      email: "hr@ugj.ac.id",
+      email: "hr@unigamalang.ac.id",
       passwordHash: await bcrypt.hash("hr12345", 10),
       name: "Staf Bagian Kepegawaian",
       role: "HR",
+    },
+  });
+  await prisma.user.upsert({
+    where: { email: "rektor@unigamalang.ac.id" },
+    update: {},
+    create: {
+      email: "rektor@unigamalang.ac.id",
+      passwordHash: await bcrypt.hash("rektor123", 10),
+      name: "Prof. Dr. Hj. Ernani Hadiyati, S.E., M.S.",
+      role: "RECTOR",
+    },
+  });
+  await prisma.user.upsert({
+    where: { email: "yayasan@unigamalang.ac.id" },
+    update: {},
+    create: {
+      email: "yayasan@unigamalang.ac.id",
+      passwordHash: await bcrypt.hash("yayasan123", 10),
+      name: "Sekretaris Yayasan Pembina Pendidikan Gajayana",
+      role: "FOUNDATION",
     },
   });
 
@@ -105,7 +125,7 @@ async function main() {
       fullName: "Dr. Ir. Bambang Setiawan, M.T.",
       gender: "MALE",
       birthDate: "1973-05-10",
-      email: "bambang.setiawan@ugj.ac.id",
+      email: "bambang.setiawan@unigamalang.ac.id",
       hireDate: "1999-03-01",
       lastIncrementDate: "2024-03-01",
       baseSalary: 5_980_000,
@@ -123,7 +143,7 @@ async function main() {
       fullName: "Dr. Siti Nurhaliza, S.E., M.M.",
       gender: "FEMALE",
       birthDate: "1982-08-15",
-      email: "siti.nurhaliza@ugj.ac.id",
+      email: "siti.nurhaliza@unigamalang.ac.id",
       hireDate: "2008-01-02",
       lastIncrementDate: "2024-05-01",
       baseSalary: 4_720_000,
@@ -141,7 +161,7 @@ async function main() {
       fullName: "Rizky Pratama, S.Kom., M.Kom.",
       gender: "MALE",
       birthDate: "1991-03-05",
-      email: "rizky.pratama@ugj.ac.id",
+      email: "rizky.pratama@unigamalang.ac.id",
       hireDate: "2018-03-01",
       lastIncrementDate: "2024-03-01",
       baseSalary: 3_710_000,
@@ -159,7 +179,7 @@ async function main() {
       fullName: "Prof. Dr. H. Abdul Rachman, M.Hum.",
       gender: "MALE",
       birthDate: "1965-01-01",
-      email: "abdul.rachman@ugj.ac.id",
+      email: "abdul.rachman@unigamalang.ac.id",
       hireDate: "1990-03-01",
       lastIncrementDate: "2024-03-01",
       baseSalary: 6_810_000,
@@ -177,7 +197,7 @@ async function main() {
       fullName: "Dewi Anggraeni, S.Pd., M.Pd.",
       gender: "FEMALE",
       birthDate: "1987-11-11",
-      email: "dewi.anggraeni@ugj.ac.id",
+      email: "dewi.anggraeni@unigamalang.ac.id",
       hireDate: "2015-04-01",
       lastIncrementDate: "2024-04-01",
       baseSalary: 4_120_000,
@@ -264,7 +284,7 @@ async function main() {
       fullName: "Hari Setiawan, S.Kom.",
       gender: "MALE",
       birthDate: "1985-03-21",
-      email: "hari.setiawan@ugj.ac.id",
+      email: "hari.setiawan@unigamalang.ac.id",
       hireDate: "2010-01-01",
       lastIncrementDate: "2024-01-01",
       baseSalary: 3_026_000,
@@ -280,7 +300,7 @@ async function main() {
       fullName: "Rina Kartika, A.Md.",
       gender: "FEMALE",
       birthDate: "1990-07-12",
-      email: "rina.kartika@ugj.ac.id",
+      email: "rina.kartika@unigamalang.ac.id",
       hireDate: "2016-02-01",
       lastIncrementDate: "2024-02-01",
       baseSalary: 2_487_000,
@@ -296,7 +316,7 @@ async function main() {
       fullName: "Budi Santosa, S.E.",
       gender: "MALE",
       birthDate: "1982-12-20",
-      email: "budi.santosa@ugj.ac.id",
+      email: "budi.santosa@unigamalang.ac.id",
       hireDate: "2009-03-15",
       lastIncrementDate: "2024-03-15",
       baseSalary: 2_903_000,
@@ -312,7 +332,7 @@ async function main() {
       fullName: "Fitria Ramadhani, S.Pd.",
       gender: "FEMALE",
       birthDate: "1995-06-08",
-      email: "fitria.r@ugj.ac.id",
+      email: "fitria.r@unigamalang.ac.id",
       hireDate: "2019-04-01",
       lastIncrementDate: null,
       baseSalary: 2_785_000,
@@ -328,7 +348,7 @@ async function main() {
       fullName: "Agus Wibowo, S.Kom., M.T.",
       gender: "MALE",
       birthDate: "1980-01-15",
-      email: "agus.wibowo@ugj.ac.id",
+      email: "agus.wibowo@unigamalang.ac.id",
       hireDate: "2005-01-01",
       lastIncrementDate: "2024-01-01",
       baseSalary: 3_287_000,
@@ -388,7 +408,7 @@ async function main() {
   // One historical increment record
   const firstEmployee = await prisma.employee.findFirst({ where: { nip: "197305101999031002" } });
   if (firstEmployee) {
-    const admin = await prisma.user.findUnique({ where: { email: "admin@ugj.ac.id" } });
+    const admin = await prisma.user.findUnique({ where: { email: "admin@unigamalang.ac.id" } });
     await prisma.incrementHistory.upsert({
       where: { decreeNumber: "001/SK.KGB/UGJ/III/2024" },
       update: {},
@@ -400,11 +420,30 @@ async function main() {
         effectiveDate: new Date("2024-03-01"),
         decreeNumber: "001/SK.KGB/UGJ/III/2024",
         decreeDate: new Date("2024-02-15"),
-        signedByName: "Prof. Dr. Hj. Endah Lestari, M.Si.",
-        signedByPosition: "Rektor Universitas Gajayana",
+        signedByName: "Prof. Dr. Hj. Ernani Hadiyati, S.E., M.S.",
+        signedByPosition: "Rektor Universitas Gajayana Malang",
         reason: "Kenaikan gaji berkala reguler setiap dua tahun.",
         status: "ISSUED",
         generatedById: admin?.id,
+      },
+    });
+  }
+
+  // Link each employee with a self-service user account.
+  console.log("Seeding employee user accounts...");
+  const defaultEmployeePassword = await bcrypt.hash("pegawai123", 10);
+  const allEmployees = await prisma.employee.findMany({ where: { email: { not: null } } });
+  for (const emp of allEmployees) {
+    if (!emp.email) continue;
+    const existing = await prisma.user.findUnique({ where: { email: emp.email } });
+    if (existing) continue;
+    await prisma.user.create({
+      data: {
+        email: emp.email,
+        passwordHash: defaultEmployeePassword,
+        name: emp.fullName,
+        role: "EMPLOYEE",
+        employeeId: emp.id,
       },
     });
   }

@@ -1,5 +1,5 @@
 // Prisma schema for "Kenaikan Gaji Berkala" (Periodic Salary Increment)
-// Universitas Gajayana
+// Universitas Gajayana Malang
 //
 // Convention: all model, field, and enum identifiers are in English.
 // Human-facing labels (UI / PDF content) live in the Indonesian locale files.
@@ -17,9 +17,11 @@ datasource db {
 // -----------------------------------------------------------------------------
 
 enum UserRole {
-  ADMIN
-  HR
-  VIEWER
+  ADMIN       // super-admin
+  HR          // Bagian Kepegawaian
+  RECTOR      // Rektor
+  FOUNDATION  // Yayasan Pembina Pendidikan Gajayana
+  EMPLOYEE    // Dosen atau Tenaga Kependidikan (self-service)
 }
 
 model User {
@@ -27,11 +29,17 @@ model User {
   email          String   @unique
   passwordHash   String
   name           String
-  role           UserRole @default(HR)
+  role           UserRole @default(EMPLOYEE)
+  employee       Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  employeeId     String?   @unique
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  generatedDecrees IncrementHistory[] @relation("GeneratedBy")
+  generatedDecrees           IncrementHistory[]   @relation("GeneratedBy")
+  hrVerifiedRequests         IncrementRequest[]   @relation("HrVerifiedBy")
+  rectorSignedRequests       IncrementRequest[]   @relation("RectorSignedBy")
+  foundationReviewedRequests IncrementRequest[]   @relation("FoundationReviewedBy")
+  uploadedDocuments          RequestDocument[]    @relation("UploadedBy")
 }
 
 // -----------------------------------------------------------------------------
@@ -109,6 +117,8 @@ model Employee {
   bkdEvaluations      BkdEvaluation[]
   performanceScores   PerformanceScore[]
   incrementHistory    IncrementHistory[]
+  incrementRequests   IncrementRequest[]
+  user                User?
 }
 
 model DosenDetail {
@@ -182,7 +192,99 @@ model PerformanceScore {
 }
 
 // -----------------------------------------------------------------------------
-// Increment history (audit trail + SK records)
+// Increment workflow (self-service request → HR → Rector → Foundation → SK)
+// -----------------------------------------------------------------------------
+
+enum IncrementRequestStatus {
+  DRAFT                 // employee started but not submitted
+  SUBMITTED             // employee uploaded docs and submitted
+  HR_REJECTED           // HR declined (e.g. missing docs)
+  HR_VERIFIED           // HR verified; Surat Pengantar generated
+  RECTOR_SIGNED         // Rektor signed Surat Pengantar; forwarded to Yayasan
+  FOUNDATION_REJECTED   // Yayasan declined
+  FOUNDATION_APPROVED   // Yayasan approved (ready to issue SK)
+  ISSUED                // Final SK Berkala issued
+  CANCELLED             // withdrawn by employee
+}
+
+enum DocumentKind {
+  SKP                   // Sasaran Kinerja Pegawai, ditandatangani atasan langsung
+  LAST_SK_BERKALA       // SK Berkala terakhir
+  TRIDHARMA_PROOF       // Bukti Tridharma aktif (Dosen only)
+  SURAT_PENGANTAR       // cover letter from Rektor to Yayasan
+  SK_BERKALA            // final SK issued by Yayasan
+}
+
+model IncrementRequest {
+  id                     String                  @id @default(cuid())
+  employee               Employee                @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId             String
+  status                 IncrementRequestStatus  @default(DRAFT)
+
+  // Snapshots at submission time
+  currentSalary          Int
+  projectedNewSalary     Int
+  incrementAmount        Int
+  projectedEffectiveDate DateTime
+  employeeNotes          String?
+
+  submittedAt            DateTime?
+
+  // HR
+  hrReviewedAt           DateTime?
+  hrReviewedBy           User?                   @relation("HrVerifiedBy", fields: [hrReviewedById], references: [id], onDelete: SetNull)
+  hrReviewedById         String?
+  hrNotes                String?
+  coverLetterNumber      String?                 @unique // Nomor Surat Pengantar Rektor
+  coverLetterDate        DateTime?
+
+  // Rector
+  rectorSignedAt         DateTime?
+  rectorSignedBy         User?                   @relation("RectorSignedBy", fields: [rectorSignedById], references: [id], onDelete: SetNull)
+  rectorSignedById       String?
+  rectorNotes            String?
+
+  // Foundation (Yayasan)
+  foundationReviewedAt   DateTime?
+  foundationReviewedBy   User?                   @relation("FoundationReviewedBy", fields: [foundationReviewedById], references: [id], onDelete: SetNull)
+  foundationReviewedById String?
+  foundationNotes        String?
+
+  // Final SK
+  decreeNumber           String?                 @unique
+  decreeDate             DateTime?
+  issuedAt               DateTime?
+  signedByName           String?
+  signedByPosition       String?
+
+  documents              RequestDocument[]
+  incrementHistoryId     String?                 @unique
+  incrementHistory       IncrementHistory?       @relation("FromRequest", fields: [incrementHistoryId], references: [id])
+
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+
+  @@index([employeeId, status])
+}
+
+model RequestDocument {
+  id            String             @id @default(cuid())
+  request       IncrementRequest   @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  requestId     String
+  kind          DocumentKind
+  originalName  String
+  storedPath    String             // relative to ./uploads/
+  mimeType      String
+  sizeBytes     Int
+  uploadedAt    DateTime           @default(now())
+  uploadedBy    User?              @relation("UploadedBy", fields: [uploadedById], references: [id], onDelete: SetNull)
+  uploadedById  String?
+
+  @@index([requestId, kind])
+}
+
+// -----------------------------------------------------------------------------
+// Increment history (audit trail + final issued SK records)
 // -----------------------------------------------------------------------------
 
 enum IncrementStatus {
@@ -206,8 +308,9 @@ model IncrementHistory {
   signedByPosition String?          // jabatan penandatangan
   reason           String?          // catatan / dasar
   status           IncrementStatus  @default(PENDING)
-  generatedBy      User?            @relation("GeneratedBy", fields: [generatedById], references: [id])
+  generatedBy      User?            @relation("GeneratedBy", fields: [generatedById], references: [id], onDelete: SetNull)
   generatedById    String?
+  request          IncrementRequest? @relation("FromRequest")
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 }
