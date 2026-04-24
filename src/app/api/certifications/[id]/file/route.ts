@@ -28,9 +28,6 @@ export async function GET(
   }
 
   const result = await readStoredUpload(cert.filePath);
-  if (result.kind === "redirect") {
-    return NextResponse.redirect(result.url, 302);
-  }
 
   // Re-derive MIME from the stored extension (defense-in-depth — never trust
   // the value in cert.fileMimeType). Render PDFs/images inline; force download

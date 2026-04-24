@@ -89,6 +89,11 @@ export async function saveUpload(
     const { put } = await import("@vercel/blob");
     const key = `${scope}/${fileName}`;
     const buffer = Buffer.from(await file.arrayBuffer());
+    // Blobs are intentionally stored as "public" URLs but we NEVER redirect
+    // clients to those URLs. Instead, `readStoredUpload` fetches bytes
+    // server-side and streams them through the authenticated API route so
+    // every access is auth-gated and wrapped in the same CSP/nosniff
+    // headers as the local-disk path.
     const blob = await put(key, buffer, {
       access: "public",
       contentType: mimeType,
@@ -137,19 +142,26 @@ export function resolveUpload(storedPath: string): string {
   return path.join(UPLOAD_ROOT, normalized);
 }
 
-export type StoredUploadResult =
-  | { kind: "bytes"; bytes: Buffer }
-  | { kind: "redirect"; url: string };
+export type StoredUploadResult = { kind: "bytes"; bytes: Buffer };
 
 /**
- * Read a stored upload, whether it lives on local disk or Vercel Blob.
- * Returns either raw bytes (to stream back) or a URL to 302 redirect to.
+ * Read a stored upload, whether it lives on local disk or Vercel Blob,
+ * and return the raw bytes. Blob URLs are fetched server-side rather than
+ * handed out via redirect so the API route can wrap every response in the
+ * same auth gate + CSP/nosniff headers as the local-disk path. This keeps
+ * "public" blob storage private in effect: the blob URL never reaches the
+ * client.
  */
 export async function readStoredUpload(
   storedPath: string,
 ): Promise<StoredUploadResult> {
   if (isBlobUrl(storedPath)) {
-    return { kind: "redirect", url: storedPath };
+    const res = await fetch(storedPath, { cache: "no-store" });
+    if (!res.ok) {
+      throw new Error(`Blob fetch failed (${res.status})`);
+    }
+    const ab = await res.arrayBuffer();
+    return { kind: "bytes", bytes: Buffer.from(ab) };
   }
   const abs = resolveUpload(storedPath);
   const bytes = await readFile(abs);

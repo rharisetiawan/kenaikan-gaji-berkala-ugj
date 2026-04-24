@@ -26,9 +26,6 @@ export async function GET(
   }
 
   const result = await readStoredUpload(doc.storedPath);
-  if (result.kind === "redirect") {
-    return NextResponse.redirect(result.url, 302);
-  }
 
   // Re-derive the MIME type from the stored filename extension rather than
   // trusting the value in `doc.mimeType` (defense-in-depth — even if an old
