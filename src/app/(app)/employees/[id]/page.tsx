@@ -98,7 +98,8 @@ export default async function EmployeeDetailPage({
           <Row label="TMT Mulai Kerja" value={formatDateID(employee.hireDate)} />
           <Row label="Masa Kerja" value={formatServiceLength(employee.hireDate)} />
           <Row label="TMT Kenaikan Terakhir" value={formatDateID(employee.lastIncrementDate)} />
-          <Row label="Status" value={employee.status} />
+          <Row label="Status Kepegawaian" value={employee.status} />
+          <Row label="Status Hubungan Kerja" value={employee.employmentStatus} />
 
           {employee.type === "DOSEN" && employee.dosenDetail && (
             <>

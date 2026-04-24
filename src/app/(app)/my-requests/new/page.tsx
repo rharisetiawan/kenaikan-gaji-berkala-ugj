@@ -59,6 +59,28 @@ export default async function NewRequestPage() {
     );
   }
 
+  if (emp.employmentStatus !== "TETAP") {
+    return (
+      <div className="mx-auto max-w-2xl space-y-4">
+        <div>
+          <Link href="/my-requests" className="text-xs text-[var(--brand)] hover:underline">
+            ← Kembali
+          </Link>
+          <h1 className="mt-1 text-2xl font-bold text-slate-900">Ajukan Kenaikan Gaji Berkala</h1>
+        </div>
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+          <p className="font-semibold">KGB hanya untuk Pegawai Tetap</p>
+          <p className="mt-1 text-amber-800">
+            Status kepegawaian Anda saat ini: <b>{emp.employmentStatus}</b>. Kenaikan Gaji
+            Berkala hanya berlaku untuk Pegawai Tetap Yayasan. Bila status Anda sudah
+            berubah menjadi Tetap, silakan hubungi Bagian Kepegawaian untuk memutakhirkan
+            data.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>

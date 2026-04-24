@@ -104,6 +104,16 @@ async function main() {
       email = row.email.replace("@unigamalang.ac.id", `.${suffix}@unigamalang.ac.id`);
     }
 
+    // Excel "status" is free-text. "Pegawai Tetap" → TETAP.
+    // "Calon Pegawai Tetap" (probationary) → KONTRAK until they are granted
+    // permanent status. Any other value falls back to KONTRAK to be safe —
+    // HR can promote them in the UI once verified.
+    const employmentStatus: "TETAP" | "KONTRAK" | "HONORER" =
+      row.status?.toLowerCase().includes("tetap") &&
+      !row.status?.toLowerCase().includes("calon")
+        ? "TETAP"
+        : "KONTRAK";
+
     await prisma.employee.upsert({
       where: { nip: row.nis },
       update: {
@@ -113,6 +123,7 @@ async function main() {
         lastIncrementDate: lastInc,
         nextIncrementDate: nextInc,
         hireDate: hire,
+        employmentStatus,
         staffDetail: {
           upsert: {
             create: {
@@ -140,6 +151,7 @@ async function main() {
         lastIncrementDate: lastInc,
         nextIncrementDate: nextInc,
         status: "ACTIVE",
+        employmentStatus,
         staffDetail: {
           create: {
             payGradeId: grade.id,

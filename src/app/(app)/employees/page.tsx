@@ -106,11 +106,14 @@ export default async function EmployeesPage({
                     {employee.email && <div className="text-xs text-slate-500">{employee.email}</div>}
                   </td>
                   <td className="px-4 py-2">
-                    {employee.type === "DOSEN" ? (
-                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">Dosen</span>
-                    ) : (
-                      <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800">Tendik</span>
-                    )}
+                    <div className="flex flex-col gap-1">
+                      {employee.type === "DOSEN" ? (
+                        <span className="inline-block rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800 w-fit">Dosen</span>
+                      ) : (
+                        <span className="inline-block rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800 w-fit">Tendik</span>
+                      )}
+                      <EmploymentBadge status={employee.employmentStatus} />
+                    </div>
                   </td>
                   <td className="px-4 py-2 text-slate-700">
                     {employee.type === "DOSEN"
@@ -144,6 +147,22 @@ function EligibilityBadge({ status }: { status: "ELIGIBLE" | "NOT_YET" | "BLOCKE
       ? "bg-red-100 text-red-800"
       : "bg-amber-100 text-amber-800";
   return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${className}`}>{label}</span>;
+}
+
+function EmploymentBadge({ status }: { status: "TETAP" | "KONTRAK" | "HONORER" }) {
+  const cls =
+    status === "TETAP"
+      ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+      : status === "KONTRAK"
+      ? "bg-amber-50 text-amber-800 border-amber-200"
+      : "bg-slate-50 text-slate-700 border-slate-200";
+  return (
+    <span
+      className={`inline-block w-fit rounded-full border px-2 py-0.5 text-[10px] font-medium ${cls}`}
+    >
+      {status}
+    </span>
+  );
 }
 
 function Th({ children }: { children: React.ReactNode }) {

@@ -42,6 +42,7 @@ export default async function MyRequestsPage() {
   const hasActiveRequest = requests.some((r) =>
     ["SUBMITTED", "HR_VERIFIED", "RECTOR_SIGNED", "FOUNDATION_APPROVED"].includes(r.status),
   );
+  const canSubmitKgb = emp.employmentStatus === "TETAP";
   const projectedIncrement = computeIncrementAmount(emp.currentBaseSalary);
   const projectedNewSalary = emp.currentBaseSalary + projectedIncrement;
 
@@ -58,7 +59,7 @@ export default async function MyRequestsPage() {
             Ajukan Kenaikan Gaji Berkala (KGB) secara mandiri dan pantau status persetujuannya.
           </p>
         </div>
-        {!hasActiveRequest && (
+        {!hasActiveRequest && canSubmitKgb && (
           <Link
             href="/my-requests/new"
             className="rounded-md bg-[var(--brand)] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-[var(--brand-dark)]"
@@ -108,13 +109,18 @@ export default async function MyRequestsPage() {
               +{formatRupiah(projectedIncrement)} dari {formatRupiah(emp.currentBaseSalary)}).
             </p>
           </div>
-          {reminderActive && !hasActiveRequest && (
+          {reminderActive && !hasActiveRequest && canSubmitKgb && (
             <Link
               href="/my-requests/new"
               className="rounded-md bg-amber-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-700"
             >
               Ajukan Sekarang
             </Link>
+          )}
+          {!canSubmitKgb && (
+            <span className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1 text-xs text-amber-800">
+              Status {emp.employmentStatus} — KGB tidak berlaku
+            </span>
           )}
           {hasActiveRequest && (
             <span className="rounded-md border border-slate-300 bg-white px-3 py-1 text-xs text-slate-700">

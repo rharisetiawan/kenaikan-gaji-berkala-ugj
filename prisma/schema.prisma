@@ -89,6 +89,17 @@ enum EmployeeStatus {
   RESIGNED
 }
 
+// Employment relationship with the Yayasan. Only TETAP pegawai are eligible
+// for the periodic salary increment (KGB). KONTRAK/HONORER live in the same
+// system so that HR can keep a single source of truth for civitas akademika
+// data (contract renewals, accreditation-ready profile fields, etc.) — their
+// KGB menu is hidden but every other feature is shared.
+enum EmploymentStatus {
+  TETAP
+  KONTRAK
+  HONORER
+}
+
 enum Gender {
   MALE
   FEMALE
@@ -109,6 +120,7 @@ model Employee {
   lastIncrementDate   DateTime?       // TMT kenaikan terakhir
   nextIncrementDate   DateTime        // projected next TMT (computed at write time)
   status              EmployeeStatus  @default(ACTIVE)
+  employmentStatus    EmploymentStatus @default(TETAP)
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt
 

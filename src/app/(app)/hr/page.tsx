@@ -71,6 +71,8 @@ export default async function HrPage({
       return prisma.employee.findMany({
         where: {
           status: "ACTIVE",
+          // KGB is only for permanent employees — skip KONTRAK/HONORER.
+          employmentStatus: "TETAP",
           ...(employeeTypeFilter ? { type: employeeTypeFilter } : {}),
           nextIncrementDate: { lte: ninetyDaysFromNow },
           incrementRequests: {

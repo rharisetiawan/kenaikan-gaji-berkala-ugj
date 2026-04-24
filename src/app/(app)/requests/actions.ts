@@ -45,6 +45,12 @@ export async function submitIncrementRequestAction(formData: FormData): Promise<
     );
   }
 
+  if (employee.employmentStatus !== "TETAP") {
+    throw new Error(
+      "Kenaikan Gaji Berkala hanya berlaku untuk pegawai tetap.",
+    );
+  }
+
   const notes = (formData.get("notes") as string | null)?.toString() ?? null;
 
   const projectedEffectiveDate = computeNextIncrementDate(employee);

@@ -170,7 +170,15 @@ export function SuratKeputusanDocument({ record }: { record: IncrementWithRelati
         <NumRow no="02." label="Nomor Induk Staf" value={nisUpper} />
         <NumRow no="03." label="Pangkat / Golongan" value={golLabel.toUpperCase()} />
         <NumRow no="04." label="Tahun Masuk" value={formatLongDateID(emp.hireDate).toUpperCase()} />
-        <NumRow no="05." label="Status" value="PEGAWAI TETAP YAYASAN" />
+        <NumRow
+          no="05."
+          label="Status"
+          value={
+            emp.employmentStatus === "TETAP"
+              ? "PEGAWAI TETAP YAYASAN"
+              : `PEGAWAI ${emp.employmentStatus} YAYASAN`
+          }
+        />
         <NumRow no="06." label="Masa Kerja" value={masaLama.toUpperCase()} />
         <NumRow no="07." label="Unit Kerja" value={unitLine.toUpperCase()} />
         <NumRow no="08." label="Gaji Pokok Lama" value={`Rp. ${formatRupiahPlain(record.previousSalary)}`} />

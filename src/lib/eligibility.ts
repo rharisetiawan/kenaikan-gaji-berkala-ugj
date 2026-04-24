@@ -101,6 +101,13 @@ export function evaluateEligibility(
     return { status: "BLOCKED", reasons, projectedEffectiveDate, projectedNewSalary, incrementAmount };
   }
 
+  if (employee.employmentStatus !== "TETAP") {
+    reasons.push(
+      `Kenaikan Gaji Berkala hanya untuk pegawai tetap. Status saat ini: ${employee.employmentStatus}.`,
+    );
+    return { status: "BLOCKED", reasons, projectedEffectiveDate, projectedNewSalary, incrementAmount };
+  }
+
   if (employee.type === "DOSEN") {
     const detail = employee.dosenDetail;
     if (!detail) {
