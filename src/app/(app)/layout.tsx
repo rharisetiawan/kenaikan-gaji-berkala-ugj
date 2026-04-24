@@ -30,7 +30,9 @@ const NAV_ITEMS: NavItem[] = [
     label: "Perbaruan Kontrak",
     roles: ["EMPLOYEE", "ADMIN"],
     showIf: ({ employmentStatus }) =>
-      employmentStatus === "KONTRAK" || employmentStatus === "HONORER",
+      employmentStatus === null ||
+      employmentStatus === "KONTRAK" ||
+      employmentStatus === "HONORER",
   },
   { href: "/hr", label: "Verifikasi Kepegawaian", roles: ["HR", "ADMIN"] },
   { href: "/hr/kelengkapan", label: "Kelengkapan Data", roles: ["HR", "ADMIN"] },

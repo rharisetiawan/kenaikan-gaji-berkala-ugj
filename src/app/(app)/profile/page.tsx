@@ -245,7 +245,7 @@ export default async function MyProfilePage() {
               name="nik"
               defaultValue={emp.nik ?? ""}
               placeholder="16 digit angka"
-              pattern="\\d{16}"
+              pattern={"\\d{16}"}
               maxLength={16}
             />
             <Select
