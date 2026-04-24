@@ -79,8 +79,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <div className="mx-auto max-w-7xl px-4 py-6">{children}</div>
       </main>
       <footer className="border-t border-slate-200 bg-white py-4 text-center text-xs text-slate-500">
-        © {new Date().getFullYear()} Bagian Kepegawaian · Universitas Gajayana Malang ·
-        www.unigamalang.ac.id
+        © {new Date().getFullYear()} Universitas Gajayana Malang · Powered by www.weverx.com
       </footer>
     </div>
   );
