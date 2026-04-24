@@ -114,47 +114,51 @@ export async function updateMyProfileAction(formData: FormData): Promise<void> {
     ? normalizeOptional(formData.get("googleScholarId"))
     : null;
 
-  // Uniqueness guard for NIK — done here instead of relying solely on the
-  // DB constraint so we can emit a friendly Indonesian message.
-  if (nik) {
-    const conflict = await prisma.employee.findFirst({
-      where: { nik, id: { not: employee.id } },
-      select: { id: true },
-    });
-    if (conflict) {
-      throw new Error("NIK tersebut sudah terdaftar pada pegawai lain.");
-    }
-  }
+  // Uniqueness check + update are wrapped in a single Serializable transaction
+  // to close the TOCTOU window between the check and the write — matches the
+  // pattern used in requests/actions.ts for cover-letter numbering.
+  await prisma.$transaction(
+    async (tx) => {
+      if (nik) {
+        const conflict = await tx.employee.findFirst({
+          where: { nik, id: { not: employee.id } },
+          select: { id: true },
+        });
+        if (conflict) {
+          throw new Error("NIK tersebut sudah terdaftar pada pegawai lain.");
+        }
+      }
 
-  await prisma.$transaction(async (tx) => {
-    await tx.employee.update({
-      where: { id: employee.id },
-      data: {
-        phone,
-        address,
-        placeOfBirth,
-        nik,
-        religion,
-        lastEducation,
-        maritalStatus,
-        dependentsCount,
-        emergencyContact,
-        profileUpdatedAt: new Date(),
-      },
-    });
-
-    if (isDosen && employee.dosenDetail) {
-      await tx.dosenDetail.update({
-        where: { employeeId: employee.id },
+      await tx.employee.update({
+        where: { id: employee.id },
         data: {
-          scopusId,
-          sintaId,
-          orcid,
-          googleScholarId,
+          phone,
+          address,
+          placeOfBirth,
+          nik,
+          religion,
+          lastEducation,
+          maritalStatus,
+          dependentsCount,
+          emergencyContact,
+          profileUpdatedAt: new Date(),
         },
       });
-    }
-  });
+
+      if (isDosen && employee.dosenDetail) {
+        await tx.dosenDetail.update({
+          where: { employeeId: employee.id },
+          data: {
+            scopusId,
+            sintaId,
+            orcid,
+            googleScholarId,
+          },
+        });
+      }
+    },
+    { isolationLevel: "Serializable" },
+  );
 
   revalidatePath("/profile");
   revalidatePath("/dashboard");
