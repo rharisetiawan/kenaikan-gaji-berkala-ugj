@@ -436,6 +436,57 @@ async function main() {
     });
   }
 
+  // HRIS Phase 2 — sample certifications + publications so HR/Dosen pages
+  // are not empty after a fresh seed. Idempotent: dedup by name+employee.
+  console.log("Seeding sample certifications & publications...");
+  const bambang = await prisma.employee.findFirst({ where: { nip: "197305101999031002" } });
+  const dewi = await prisma.employee.findFirst({
+    where: { nip: "198711112015041003" },
+    include: { dosenDetail: { select: { id: true } } },
+  });
+
+  if (bambang) {
+    const exists = await prisma.certification.findFirst({
+      where: { employeeId: bambang.id, name: "Sertifikasi Dosen Profesional" },
+    });
+    if (!exists) {
+      await prisma.certification.create({
+        data: {
+          employeeId: bambang.id,
+          name: "Sertifikasi Dosen Profesional",
+          issuer: "Kementerian Pendidikan, Kebudayaan, Riset, dan Teknologi",
+          category: "SERDOS",
+          certificateNumber: "SERDOS/2014/0710057301",
+          issueDate: new Date("2014-08-01"),
+          verified: true,
+          verifiedAt: new Date(),
+        },
+      });
+    }
+  }
+
+  if (dewi?.dosenDetail) {
+    const pubExists = await prisma.publication.findFirst({
+      where: {
+        dosenDetailId: dewi.dosenDetail.id,
+        title: "Penerapan Task-Based Learning pada Pembelajaran Bahasa Inggris di SMA",
+      },
+    });
+    if (!pubExists) {
+      await prisma.publication.create({
+        data: {
+          dosenDetailId: dewi.dosenDetail.id,
+          title: "Penerapan Task-Based Learning pada Pembelajaran Bahasa Inggris di SMA",
+          kind: "JURNAL_NASIONAL_TERAKREDITASI",
+          year: 2024,
+          venue: "Jurnal Pendidikan Bahasa dan Sastra Indonesia",
+          authorRole: "FIRST_AUTHOR",
+          sintaRank: "S3",
+        },
+      });
+    }
+  }
+
   // Link each employee with a self-service user account.
   console.log("Seeding employee user accounts...");
   const defaultEmployeePassword = await bcrypt.hash("pegawai123", 10);
