@@ -32,7 +32,11 @@ export async function submitIncrementRequestAction(formData: FormData): Promise<
 
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
-    include: { employee: true },
+    include: {
+      employee: {
+        include: { bkdEvaluations: true },
+      },
+    },
   });
   if (!user?.employee) {
     throw new Error("Akun ini belum tertaut dengan data pegawai.");
@@ -49,6 +53,22 @@ export async function submitIncrementRequestAction(formData: FormData): Promise<
     throw new Error(
       "Kenaikan Gaji Berkala hanya berlaku untuk pegawai tetap.",
     );
+  }
+
+  // Dosen gate: block submission if BKD isn't passed for the latest 2 semesters.
+  // HR would otherwise reject; pre-flighting avoids wasted uploads.
+  if (employee.type === "DOSEN") {
+    const sortedBkd = [...employee.bkdEvaluations].sort((a, b) => {
+      if (a.academicYear !== b.academicYear) return a.academicYear < b.academicYear ? 1 : -1;
+      return a.semester < b.semester ? 1 : -1;
+    });
+    const latest = sortedBkd.slice(0, 2);
+    const allPassed = latest.length === 2 && latest.every((b) => b.status === "PASS");
+    if (!allPassed) {
+      throw new Error(
+        "Pengajuan diblokir: BKD 2 semester terakhir belum lulus. Selesaikan BKD sebelum mengajukan KGB.",
+      );
+    }
   }
 
   const notes = (formData.get("notes") as string | null)?.toString() ?? null;
