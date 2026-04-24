@@ -19,6 +19,29 @@ export const INCREMENT_PERCENT = 0.03; // 3% of current base salary per periodic
 // Minimum evaluations a Dosen must have passed (over the latest 2 semesters).
 export const DOSEN_REQUIRED_BKD_PASSES = 2;
 
+/**
+ * Sort BKD evaluations newest-first (by academicYear desc, then semester desc).
+ * Semester values like "GANJIL"/"GENAP" sort lexicographically — GENAP > GANJIL.
+ */
+export function sortBkdNewestFirst(evals: BkdEvaluation[]): BkdEvaluation[] {
+  return [...evals].sort((a, b) => {
+    if (a.academicYear !== b.academicYear) return a.academicYear < b.academicYear ? 1 : -1;
+    return a.semester < b.semester ? 1 : -1;
+  });
+}
+
+/**
+ * Returns true iff the Dosen has `DOSEN_REQUIRED_BKD_PASSES` most-recent
+ * evaluations and all of them are PASS.
+ */
+export function dosenHasRecentBkdPasses(evals: BkdEvaluation[]): boolean {
+  const latest = sortBkdNewestFirst(evals).slice(0, DOSEN_REQUIRED_BKD_PASSES);
+  return (
+    latest.length === DOSEN_REQUIRED_BKD_PASSES &&
+    latest.every((b) => b.status === "PASS")
+  );
+}
+
 // Minimum performance score (0-100) a Staff must hit on the last annual review.
 export const STAFF_MIN_PERFORMANCE_SCORE = 76;
 

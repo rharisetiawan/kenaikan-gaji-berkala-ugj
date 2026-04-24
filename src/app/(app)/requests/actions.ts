@@ -8,6 +8,7 @@ import {
   computeIncrementAmount,
   computeNextIncrementDate,
   DOSEN_REQUIRED_BKD_PASSES,
+  dosenHasRecentBkdPasses,
 } from "@/lib/eligibility";
 import { saveUpload } from "@/lib/uploads";
 import { requiredDocumentsFor, workflowEnabledFor } from "@/lib/requests";
@@ -61,20 +62,10 @@ export async function submitIncrementRequestAction(formData: FormData): Promise<
 
   // Dosen gate: block submission if BKD isn't passed for the latest 2 semesters.
   // HR would otherwise reject; pre-flighting avoids wasted uploads.
-  if (employee.type === "DOSEN") {
-    const sortedBkd = [...employee.bkdEvaluations].sort((a, b) => {
-      if (a.academicYear !== b.academicYear) return a.academicYear < b.academicYear ? 1 : -1;
-      return a.semester < b.semester ? 1 : -1;
-    });
-    const latest = sortedBkd.slice(0, DOSEN_REQUIRED_BKD_PASSES);
-    const allPassed =
-      latest.length === DOSEN_REQUIRED_BKD_PASSES &&
-      latest.every((b) => b.status === "PASS");
-    if (!allPassed) {
-      throw new Error(
-        `Pengajuan diblokir: BKD ${DOSEN_REQUIRED_BKD_PASSES} semester terakhir belum lulus. Selesaikan BKD sebelum mengajukan KGB.`,
-      );
-    }
+  if (employee.type === "DOSEN" && !dosenHasRecentBkdPasses(employee.bkdEvaluations)) {
+    throw new Error(
+      `Pengajuan diblokir: BKD ${DOSEN_REQUIRED_BKD_PASSES} semester terakhir belum lulus. Selesaikan BKD sebelum mengajukan KGB.`,
+    );
   }
 
   const notes = (formData.get("notes") as string | null)?.toString() ?? null;

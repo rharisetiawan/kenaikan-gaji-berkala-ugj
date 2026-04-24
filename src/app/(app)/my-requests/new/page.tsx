@@ -3,7 +3,12 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { formatDateID, formatRupiah } from "@/lib/format";
-import { computeIncrementAmount, computeNextIncrementDate } from "@/lib/eligibility";
+import {
+  computeIncrementAmount,
+  computeNextIncrementDate,
+  dosenHasRecentBkdPasses,
+  DOSEN_REQUIRED_BKD_PASSES,
+} from "@/lib/eligibility";
 import { humanDocumentKind, requiredDocumentsFor, workflowEnabledFor } from "@/lib/requests";
 import { submitIncrementRequestAction } from "@/app/(app)/requests/actions";
 
@@ -20,6 +25,7 @@ export default async function NewRequestPage() {
         include: {
           dosenDetail: { include: { academicRank: true } },
           staffDetail: { include: { payGrade: true } },
+          bkdEvaluations: true,
         },
       },
     },
@@ -81,6 +87,30 @@ export default async function NewRequestPage() {
     );
   }
 
+  if (emp.type === "DOSEN" && !dosenHasRecentBkdPasses(emp.bkdEvaluations)) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-4">
+        <div>
+          <Link href="/my-requests" className="text-xs text-[var(--brand)] hover:underline">
+            ← Kembali
+          </Link>
+          <h1 className="mt-1 text-2xl font-bold text-slate-900">Ajukan Kenaikan Gaji Berkala</h1>
+        </div>
+        <div className="rounded-lg border border-rose-300 bg-rose-50 p-4 text-sm text-rose-900">
+          <p className="font-semibold">
+            Pengajuan diblokir: BKD {DOSEN_REQUIRED_BKD_PASSES} semester terakhir belum lulus
+          </p>
+          <p className="mt-1 text-rose-800">
+            Kenaikan Gaji Berkala hanya dapat diajukan jika hasil Evaluasi Kinerja Dosen (BKD)
+            pada {DOSEN_REQUIRED_BKD_PASSES} semester terakhir berstatus <b>LULUS</b>. Mohon
+            selesaikan BKD terlebih dahulu. Hubungi Bagian Kepegawaian bila data BKD Anda belum
+            termutakhirkan.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
@@ -117,7 +147,6 @@ export default async function NewRequestPage() {
 
       <form
         action={submitIncrementRequestAction}
-        encType="multipart/form-data"
         className="space-y-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
       >
         <h2 className="text-sm font-semibold text-slate-900">Dokumen Pendukung</h2>
