@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requireRole } from "@/lib/auth";
 import {
   computeIncrementAmount,
   computeNextIncrementDate,
@@ -143,6 +143,112 @@ export async function submitIncrementRequestAction(formData: FormData): Promise<
   revalidatePath("/my-requests");
   revalidatePath("/hr");
   redirect(`/my-requests/${request.id}`);
+}
+
+/**
+ * HR (or ADMIN) bypass: submit an IncrementRequest on behalf of an elderly
+ * or non-tech-savvy pegawai. The same eligibility/gate checks apply as for
+ * the self-service flow; the request is persisted with `filedById` set to
+ * the HR user so audit can distinguish HR-filed vs self-filed requests.
+ */
+export async function submitRequestOnBehalfAction(formData: FormData): Promise<void> {
+  const session = await requireRole(["HR", "ADMIN"]);
+
+  const employeeId = String(formData.get("employeeId") ?? "").trim();
+  if (!employeeId) throw new Error("ID pegawai wajib.");
+
+  const employee = await prisma.employee.findUnique({
+    where: { id: employeeId },
+    include: { bkdEvaluations: true },
+  });
+  if (!employee) throw new Error("Pegawai tidak ditemukan.");
+
+  if (!workflowEnabledFor(employee.type)) {
+    throw new Error(
+      "Alur KGB untuk tipe pegawai ini belum diaktifkan.",
+    );
+  }
+  if (employee.employmentStatus !== "TETAP") {
+    throw new Error(
+      "Kenaikan Gaji Berkala hanya berlaku untuk pegawai tetap.",
+    );
+  }
+  if (employee.type === "DOSEN" && !dosenHasRecentBkdPasses(employee.bkdEvaluations)) {
+    throw new Error(
+      `Pengajuan diblokir: BKD ${DOSEN_REQUIRED_BKD_PASSES} semester terakhir belum lulus.`,
+    );
+  }
+
+  const notes = (formData.get("notes") as string | null)?.toString() ?? null;
+  const projectedEffectiveDate = computeNextIncrementDate(employee);
+  const incrementAmount = computeIncrementAmount(employee.currentBaseSalary);
+  const projectedNewSalary = employee.currentBaseSalary + incrementAmount;
+
+  const required = requiredDocumentsFor(employee.type);
+  for (const kind of required) {
+    const file = formData.get(`doc_${kind}`);
+    if (!(file instanceof File) || file.size === 0) {
+      throw new Error(`Berkas ${kind} wajib diunggah.`);
+    }
+  }
+
+  const request = await prisma.$transaction(
+    async (tx) => {
+      const existing = await tx.incrementRequest.findFirst({
+        where: {
+          employeeId: employee.id,
+          status: {
+            in: ["SUBMITTED", "HR_VERIFIED", "RECTOR_SIGNED", "FOUNDATION_APPROVED"],
+          },
+        },
+      });
+      if (existing) {
+        throw new Error(
+          "Sudah ada pengajuan aktif pegawai ini yang sedang diproses.",
+        );
+      }
+      return tx.incrementRequest.create({
+        data: {
+          employeeId: employee.id,
+          status: "SUBMITTED",
+          currentSalary: employee.currentBaseSalary,
+          projectedNewSalary,
+          incrementAmount,
+          projectedEffectiveDate,
+          employeeNotes: notes,
+          submittedAt: new Date(),
+          filedById: session.userId,
+        },
+      });
+    },
+    { isolationLevel: "Serializable" },
+  );
+
+  try {
+    for (const kind of required) {
+      const file = formData.get(`doc_${kind}`) as File;
+      const saved = await saveUpload(file, request.id, kind);
+      await prisma.requestDocument.create({
+        data: {
+          requestId: request.id,
+          kind: kind as DocumentKind,
+          originalName: saved.originalName,
+          storedPath: saved.storedPath,
+          mimeType: saved.mimeType,
+          sizeBytes: saved.sizeBytes,
+          uploadedById: session.userId,
+        },
+      });
+    }
+  } catch (err) {
+    await prisma.requestDocument.deleteMany({ where: { requestId: request.id } });
+    await prisma.incrementRequest.delete({ where: { id: request.id } }).catch(() => {});
+    throw err;
+  }
+
+  revalidatePath("/hr");
+  revalidatePath(`/employees/${employee.id}`);
+  redirect(`/hr/${request.id}`);
 }
 
 async function loadRequestOrThrow(id: string) {

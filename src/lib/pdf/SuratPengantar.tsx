@@ -111,7 +111,19 @@ const COLW = {
   rapel: 40,
 };
 
-export function SuratPengantarDocument({ record }: { record: RequestWithRelations }) {
+export interface OfficialSnapshot {
+  name: string;
+  nip: string | null;
+  title: string;
+}
+
+export function SuratPengantarDocument({
+  record,
+  rector,
+}: {
+  record: RequestWithRelations;
+  rector?: OfficialSnapshot;
+}) {
   const emp = record.employee;
   const unit =
     emp.type === "DOSEN"
@@ -198,9 +210,11 @@ export function SuratPengantarDocument({ record }: { record: RequestWithRelation
         <View style={styles.signBox}>
           <Text>Rektor,</Text>
           <Text style={styles.signLine}>
-            {record.rectorSignedBy?.name ?? "Prof. Dr. Ernani Hadiyati, S.E., M.M."}
+            {record.rectorSignedBy?.name ??
+              rector?.name ??
+              "Prof. Dr. Ernani Hadiyati, S.E., M.M."}
           </Text>
-          <Text style={styles.signPos}>NIP. —</Text>
+          <Text style={styles.signPos}>NIP. {rector?.nip ?? "—"}</Text>
         </View>
 
         <Text style={styles.footerNote}>
@@ -266,7 +280,9 @@ export function SuratPengantarDocument({ record }: { record: RequestWithRelation
               textDecoration: "underline",
             }}
           >
-            {record.rectorSignedBy?.name ?? "Prof. Dr. Ernani Hadiyati, S.E., M.M."}
+            {record.rectorSignedBy?.name ??
+              rector?.name ??
+              "Prof. Dr. Ernani Hadiyati, S.E., M.M."}
           </Text>
           <Text style={{ marginLeft: "55%", fontSize: 10, color: "#444" }}>NIP. —</Text>
         </View>

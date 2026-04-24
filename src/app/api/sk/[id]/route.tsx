@@ -3,6 +3,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { SuratKeputusanDocument } from "@/lib/pdf/SuratKeputusan";
+import { getOfficial } from "@/lib/officials";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -37,7 +38,10 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
     }
   }
 
-  const buffer = await renderToBuffer(<SuratKeputusanDocument record={record} />);
+  const foundationChair = await getOfficial("FOUNDATION_CHAIR");
+  const buffer = await renderToBuffer(
+    <SuratKeputusanDocument record={record} foundationChair={foundationChair} />,
+  );
   const arrayBuffer = buffer.buffer.slice(
     buffer.byteOffset,
     buffer.byteOffset + buffer.byteLength,

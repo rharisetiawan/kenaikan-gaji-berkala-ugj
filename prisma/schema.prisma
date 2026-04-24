@@ -30,6 +30,7 @@ model User {
   passwordHash   String
   name           String
   role           UserRole @default(EMPLOYEE)
+  isActive       Boolean  @default(true)
   employee       Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
   employeeId     String?   @unique
   createdAt      DateTime @default(now())
@@ -40,6 +41,8 @@ model User {
   rectorSignedRequests       IncrementRequest[]   @relation("RectorSignedBy")
   foundationReviewedRequests IncrementRequest[]   @relation("FoundationReviewedBy")
   uploadedDocuments          RequestDocument[]    @relation("UploadedBy")
+  officialUpdates            OrgOfficial[]        @relation("OfficialUpdatedBy")
+  requestsFiledOnBehalf      IncrementRequest[]   @relation("FiledBy")
 }
 
 // -----------------------------------------------------------------------------
@@ -293,6 +296,13 @@ model IncrementRequest {
 
   submittedAt            DateTime?
 
+  // If non-null, the request was filed by someone other than the employee
+  // (typically HR on behalf of an elderly / non-tech-savvy pegawai). The
+  // employee remains the subject of the request; this field just records
+  // who actually typed it in. Null = employee self-submitted.
+  filedBy                User?                   @relation("FiledBy", fields: [filedById], references: [id], onDelete: SetNull)
+  filedById              String?
+
   // HR
   hrReviewedAt           DateTime?
   hrReviewedBy           User?                   @relation("HrVerifiedBy", fields: [hrReviewedById], references: [id], onDelete: SetNull)
@@ -458,4 +468,28 @@ model Publication {
 
   @@index([dosenDetailId, year])
   @@index([kind, year])
+}
+
+// -----------------------------------------------------------------------------
+// Organization officials (editable by ADMIN)
+// -----------------------------------------------------------------------------
+
+// Who currently holds a given signing role (Rektor, Ketua Yayasan, ...).
+// PDFs render these names at generation time, so when the role-holder
+// changes, ADMIN updates one row and every subsequent letter picks it up
+// without a deploy.
+enum OfficialRole {
+  RECTOR            // Rektor Universitas Gajayana Malang
+  FOUNDATION_CHAIR  // Ketua Yayasan Pembina Pendidikan Gajayana
+}
+
+model OrgOfficial {
+  id          String       @id @default(cuid())
+  role        OfficialRole @unique
+  name        String       // e.g. "Prof. Dr. Ernani Hadiyati, S.E., M.M."
+  nip         String?      // NIP / NIS (optional — Rektor sometimes has none)
+  title       String       // display line under the name, e.g. "Rektor"
+  updatedAt   DateTime     @updatedAt
+  updatedBy   User?        @relation("OfficialUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  updatedById String?
 }

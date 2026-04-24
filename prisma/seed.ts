@@ -105,6 +105,31 @@ async function main() {
     },
   });
 
+  // Organization officials (editable at /admin/pejabat). Names here are
+  // bootstraps only — once ADMIN edits them at runtime the DB is the
+  // source of truth and subsequent seed runs leave them alone.
+  console.log("Seeding organization officials...");
+  await prisma.orgOfficial.upsert({
+    where: { role: "RECTOR" },
+    update: {},
+    create: {
+      role: "RECTOR",
+      name: "Prof. Dr. Ernani Hadiyati, S.E., M.M.",
+      nip: null,
+      title: "Rektor Universitas Gajayana Malang",
+    },
+  });
+  await prisma.orgOfficial.upsert({
+    where: { role: "FOUNDATION_CHAIR" },
+    update: {},
+    create: {
+      role: "FOUNDATION_CHAIR",
+      name: "Dr. Rosidi, SE, MM. Ak",
+      nip: null,
+      title: "Ketua Yayasan Pembina Pendidikan Gajayana",
+    },
+  });
+
   console.log("Seeding employees...");
 
   const today = new Date();
