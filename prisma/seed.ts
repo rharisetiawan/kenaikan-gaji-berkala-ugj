@@ -35,8 +35,15 @@ async function main() {
     }),
   ]);
 
-  // Pay grades (Golongan) - simplified ladder
+  // Pay grades (Golongan) - simplified ladder. Golongan I is included because
+  // the legacy REKAP BERKALA rekap import contains staff at I/d; baseSalary
+  // values in that range are placeholders (the imported rows overwrite the
+  // salary on the Employee row directly).
   const gradeDefs: Array<{ code: string; name: string; baseSalary: number; level: number }> = [
+    { code: "I/a", name: "Juru Muda", baseSalary: 1_685_000, level: -3 },
+    { code: "I/b", name: "Juru Muda Tingkat I", baseSalary: 1_761_000, level: -2 },
+    { code: "I/c", name: "Juru", baseSalary: 1_840_000, level: -1 },
+    { code: "I/d", name: "Juru Tingkat I", baseSalary: 1_921_000, level: 0 },
     { code: "II/a", name: "Pengatur Muda", baseSalary: 2_184_000, level: 1 },
     { code: "II/b", name: "Pengatur Muda Tingkat I", baseSalary: 2_385_000, level: 2 },
     { code: "II/c", name: "Pengatur", baseSalary: 2_487_000, level: 3 },
@@ -218,7 +225,7 @@ async function main() {
     const nextIncrement = computeNextIncrementDate({ hireDate: hire, lastIncrementDate: last });
     const employee = await prisma.employee.upsert({
       where: { nip: d.nip },
-      update: {},
+      update: { email: d.email, fullName: d.fullName },
       create: {
         nip: d.nip,
         fullName: d.fullName,
@@ -368,7 +375,7 @@ async function main() {
     const nextIncrement = computeNextIncrementDate({ hireDate: hire, lastIncrementDate: last });
     const employee = await prisma.employee.upsert({
       where: { nip: s.nip },
-      update: {},
+      update: { email: s.email, fullName: s.fullName },
       create: {
         nip: s.nip,
         fullName: s.fullName,

@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { formatDateID, formatRupiah } from "@/lib/format";
 import { computeIncrementAmount, computeNextIncrementDate } from "@/lib/eligibility";
-import { humanDocumentKind, requiredDocumentsFor } from "@/lib/requests";
+import { humanDocumentKind, requiredDocumentsFor, workflowEnabledFor } from "@/lib/requests";
 import { submitIncrementRequestAction } from "@/app/(app)/requests/actions";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +36,28 @@ export default async function NewRequestPage() {
   const projectedNewSalary = emp.currentBaseSalary + projectedIncrement;
   const projectedDate = computeNextIncrementDate(emp);
   const required = requiredDocumentsFor(emp.type);
+  const workflowOpen = workflowEnabledFor(emp.type);
+
+  if (!workflowOpen) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-4">
+        <div>
+          <Link href="/my-requests" className="text-xs text-[var(--brand)] hover:underline">
+            ← Kembali
+          </Link>
+          <h1 className="mt-1 text-2xl font-bold text-slate-900">Ajukan Kenaikan Gaji Berkala</h1>
+        </div>
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+          <p className="font-semibold">Alur KGB untuk Dosen belum dibuka</p>
+          <p className="mt-1 text-amber-800">
+            Pengajuan mandiri untuk Dosen (termasuk unggahan Bukti Tridharma) sedang disiapkan.
+            Saat ini sistem fokus pada alur Tenaga Kependidikan. Silakan hubungi Bagian Kepegawaian
+            untuk kebutuhan KGB Anda.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">

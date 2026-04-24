@@ -1,3 +1,9 @@
+/**
+ * Surat Pengantar (Rektor → Yayasan) — layout based on the institutional
+ * template "Surat Rektor - Pengantar ke Yayasan.doc". Keeps the brief
+ * covering letter on page 1 and the "Lampiran" attachment table (one row
+ * per employee included in this request) on page 2.
+ */
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import type {
   IncrementRequest,
@@ -8,7 +14,8 @@ import type {
   PayGrade,
   User,
 } from "@prisma/client";
-import { formatDateID, formatLongDateID, formatRupiah } from "@/lib/format";
+import { formatDateID, formatRupiah } from "@/lib/format";
+import { monthsOverdue } from "@/lib/rapel";
 
 type RequestWithRelations = IncrementRequest & {
   employee: Employee & {
@@ -22,8 +29,8 @@ type RequestWithRelations = IncrementRequest & {
 const styles = StyleSheet.create({
   page: {
     paddingTop: 40,
-    paddingBottom: 60,
-    paddingHorizontal: 60,
+    paddingBottom: 40,
+    paddingHorizontal: 56,
     fontSize: 11,
     fontFamily: "Helvetica",
     lineHeight: 1.45,
@@ -39,46 +46,90 @@ const styles = StyleSheet.create({
   hdrBig: { fontSize: 14, fontFamily: "Helvetica-Bold", marginTop: 2 },
   hdrAddress: { fontSize: 9, marginTop: 2 },
   metaRow: { flexDirection: "row", marginBottom: 2 },
-  metaLabel: { width: 60 },
+  metaLabel: { width: 70 },
   metaColon: { width: 10 },
   metaValue: { flex: 1 },
-  title: {
-    textAlign: "center",
-    marginTop: 14,
-    marginBottom: 2,
-    fontSize: 12,
-    fontFamily: "Helvetica-Bold",
-    textDecoration: "underline",
-  },
-  subtitle: {
-    textAlign: "center",
-    marginBottom: 16,
-    fontSize: 11,
-  },
-  paragraph: { marginBottom: 8, textAlign: "justify" },
-  row: { flexDirection: "row", marginBottom: 1 },
-  rowLabel: { width: 140 },
-  rowColon: { width: 10 },
-  rowValue: { flex: 1, fontFamily: "Helvetica-Bold" },
+  paragraph: { marginBottom: 10, textAlign: "justify" },
   signBox: { marginTop: 40, marginLeft: "55%", width: "45%" },
   signLine: { marginTop: 54, fontFamily: "Helvetica-Bold", textDecoration: "underline" },
+  signPos: { marginTop: 2, fontSize: 10, color: "#444" },
+  // Lampiran table
+  lampHeader: { fontSize: 12, fontFamily: "Helvetica-Bold", marginBottom: 10 },
+  lampMeta: { flexDirection: "row", marginBottom: 2 },
+  table: { marginTop: 12, borderStyle: "solid", borderWidth: 0.5, borderColor: "#333" },
+  tr: { flexDirection: "row" },
+  th: {
+    fontSize: 8,
+    fontFamily: "Helvetica-Bold",
+    backgroundColor: "#e8ecf3",
+    borderStyle: "solid",
+    borderColor: "#333",
+    borderWidth: 0.5,
+    padding: 3,
+    textAlign: "center",
+  },
+  td: {
+    fontSize: 8,
+    borderStyle: "solid",
+    borderColor: "#333",
+    borderWidth: 0.5,
+    padding: 3,
+  },
+  tdCenter: {
+    fontSize: 8,
+    borderStyle: "solid",
+    borderColor: "#333",
+    borderWidth: 0.5,
+    padding: 3,
+    textAlign: "center",
+  },
+  tdRight: {
+    fontSize: 8,
+    borderStyle: "solid",
+    borderColor: "#333",
+    borderWidth: 0.5,
+    padding: 3,
+    textAlign: "right",
+  },
   footerNote: { marginTop: 24, fontSize: 9, color: "#555" },
 });
 
+// Column widths (percent) for the Lampiran table.
+const COLW = {
+  no: 24,
+  nama: 95,
+  nis: 55,
+  golLama: 36,
+  thnMasuk: 48,
+  masaKerja: 42,
+  unit: 78,
+  gajiLama: 54,
+  gajiBaru: 54,
+  golBaru: 36,
+  tmt: 48,
+  rapel: 40,
+};
+
 export function SuratPengantarDocument({ record }: { record: RequestWithRelations }) {
   const emp = record.employee;
-  const employeeType = emp.type === "DOSEN" ? "Dosen Tetap" : "Tenaga Kependidikan";
-  const jabatan =
-    emp.type === "DOSEN"
-      ? emp.dosenDetail?.academicRank.name ?? "-"
-      : `${emp.staffDetail?.payGrade.code ?? "-"} (${emp.staffDetail?.payGrade.name ?? "-"})`;
   const unit =
     emp.type === "DOSEN"
-      ? `${emp.dosenDetail?.faculty ?? "-"} - Program Studi ${emp.dosenDetail?.studyProgram ?? "-"}`
-      : `${emp.staffDetail?.unit ?? "-"} - ${emp.staffDetail?.position ?? "-"}`;
+      ? `${emp.dosenDetail?.faculty ?? "-"} / ${emp.dosenDetail?.studyProgram ?? "-"}`
+      : `${emp.staffDetail?.unit ?? "-"}`;
+  const golLama =
+    emp.type === "DOSEN"
+      ? emp.dosenDetail?.academicRank.name ?? "-"
+      : emp.staffDetail?.payGrade.code ?? "-";
+  // For now "Gol Baru" = "Gol Lama" — the increment is within the same golongan.
+  const golBaru = golLama;
+  const rapelMonths = monthsOverdue(record.projectedEffectiveDate);
+  const masaKerja = masaKerjaFrom(emp.hireDate, new Date());
+
+  const coverLetterDate = record.rectorSignedAt ?? record.coverLetterDate ?? new Date();
 
   return (
     <Document>
+      {/* Page 1 — Cover letter (matches "Surat Rektor - Pengantar ke Yayasan.doc") */}
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
           <Text style={styles.hdrSmall}>YAYASAN PEMBINA PENDIDIKAN GAJAYANA</Text>
@@ -91,103 +142,142 @@ export function SuratPengantarDocument({ record }: { record: RequestWithRelation
           </Text>
         </View>
 
-        <View style={{ marginBottom: 16 }}>
-          <View style={styles.metaRow}>
-            <Text style={styles.metaLabel}>Nomor</Text>
-            <Text style={styles.metaColon}>:</Text>
-            <Text style={styles.metaValue}>{record.coverLetterNumber ?? "-"}</Text>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 12 }}>
+          <View style={{ width: "55%" }}>
+            <View style={styles.metaRow}>
+              <Text style={styles.metaLabel}>Nomor</Text>
+              <Text style={styles.metaColon}>:</Text>
+              <Text style={styles.metaValue}>{record.coverLetterNumber ?? "-"}</Text>
+            </View>
+            <View style={styles.metaRow}>
+              <Text style={styles.metaLabel}>Lampiran</Text>
+              <Text style={styles.metaColon}>:</Text>
+              <Text style={styles.metaValue}>1 (satu) set</Text>
+            </View>
+            <View style={styles.metaRow}>
+              <Text style={styles.metaLabel}>Perihal</Text>
+              <Text style={styles.metaColon}>:</Text>
+              <Text style={[styles.metaValue, { fontFamily: "Helvetica-Bold" }]}>
+                USULAN PENETAPAN GAJI BERKALA
+              </Text>
+            </View>
+            <View style={styles.metaRow}>
+              <Text style={styles.metaLabel}></Text>
+              <Text style={styles.metaColon}></Text>
+              <Text style={styles.metaValue}>Atas Nama terlampir</Text>
+            </View>
           </View>
-          <View style={styles.metaRow}>
-            <Text style={styles.metaLabel}>Lampiran</Text>
-            <Text style={styles.metaColon}>:</Text>
-            <Text style={styles.metaValue}>1 (satu) berkas usulan</Text>
-          </View>
-          <View style={styles.metaRow}>
-            <Text style={styles.metaLabel}>Perihal</Text>
-            <Text style={styles.metaColon}>:</Text>
-            <Text style={[styles.metaValue, { fontFamily: "Helvetica-Bold" }]}>
-              Usulan Kenaikan Gaji Berkala a.n. {emp.fullName}
-            </Text>
-          </View>
+          <Text style={{ fontSize: 11 }}>Malang, {formatDateID(coverLetterDate)}</Text>
         </View>
 
         <View style={{ marginBottom: 16 }}>
-          <Text>Kepada Yth.</Text>
-          <Text style={{ fontFamily: "Helvetica-Bold" }}>
-            Ketua Yayasan Pembina Pendidikan Gajayana
-          </Text>
-          <Text>di Malang</Text>
+          <View style={styles.metaRow}>
+            <Text style={styles.metaLabel}>KEPADA</Text>
+            <Text style={styles.metaColon}>:</Text>
+            <Text style={styles.metaValue}>Yth. Ketua Yayasan Pendidikan Gajayana</Text>
+          </View>
+          <Text style={{ marginLeft: 80 }}>Di</Text>
+          <Text style={{ marginLeft: 80, fontFamily: "Helvetica-Bold" }}>Malang</Text>
         </View>
 
+        <Text style={styles.paragraph}>Dengan hormat,</Text>
         <Text style={styles.paragraph}>
-          Dengan hormat, sehubungan dengan telah terpenuhinya persyaratan Kenaikan Gaji Berkala
-          (KGB) reguler setiap dua tahun bagi pegawai Universitas Gajayana Malang, bersama ini
-          kami mengajukan usulan Kenaikan Gaji Berkala atas nama pegawai berikut:
+          Dengan ini diberitahukan bahwa berdasarkan hasil penilaian pelaksanaan pekerjaan dan
+          dipenuhinya masa kerja dan syarat-syarat lainnya kepada nama terlampir.
         </Text>
-
-        <View style={{ marginBottom: 10 }}>
-          <Row label="Nama" value={emp.fullName} />
-          <Row label="NIP" value={emp.nip} />
-          {emp.type === "DOSEN" && <Row label="NIDN" value={emp.dosenDetail?.nidn ?? "-"} />}
-          <Row label="Status Pegawai" value={employeeType} />
-          <Row label={emp.type === "DOSEN" ? "Jabatan Akademik" : "Golongan"} value={jabatan} />
-          <Row label={emp.type === "DOSEN" ? "Fakultas / Prodi" : "Unit Kerja"} value={unit} />
-          <Row label="TMT Mulai Kerja" value={formatDateID(emp.hireDate)} />
-          <Row
-            label="TMT KGB Berikutnya"
-            value={formatDateID(record.projectedEffectiveDate)}
-          />
-          <Row label="Gaji Pokok Lama" value={formatRupiah(record.currentSalary)} />
-          <Row label="Gaji Pokok Baru" value={formatRupiah(record.projectedNewSalary)} />
-          <Row label="Kenaikan" value={formatRupiah(record.incrementAmount)} />
-        </View>
-
         <Text style={styles.paragraph}>
-          Berkas pendukung (SKP yang ditandatangani atasan langsung, SK Berkala terakhir
-          {emp.type === "DOSEN" ? ", dan Bukti Tridharma aktif" : ""}) telah diverifikasi oleh
-          Bagian Kepegawaian pada tanggal{" "}
-          {record.hrReviewedAt ? formatDateID(record.hrReviewedAt) : "-"} dan dinyatakan lengkap.
-        </Text>
-
-        <Text style={styles.paragraph}>
-          Sehubungan dengan hal tersebut, kami mohon Yayasan berkenan menerbitkan Surat Keputusan
-          Kenaikan Gaji Berkala yang bersangkutan. Atas perhatian dan kerja sama Yayasan, kami
-          ucapkan terima kasih.
+          Demikian atas perhatiannya, kami ucapkan terima kasih.
         </Text>
 
         <View style={styles.signBox}>
-          <Text>Ditetapkan di : Malang</Text>
-          <Text>
-            Pada tanggal :{" "}
-            {record.rectorSignedAt
-              ? formatLongDateID(record.rectorSignedAt)
-              : record.coverLetterDate
-                ? formatLongDateID(record.coverLetterDate)
-                : "-"}
-          </Text>
-          <Text style={{ marginTop: 8 }}>Rektor Universitas Gajayana Malang</Text>
+          <Text>Rektor,</Text>
           <Text style={styles.signLine}>
-            {record.rectorSignedBy?.name ?? "Rektor Universitas Gajayana Malang"}
+            {record.rectorSignedBy?.name ?? "Prof. Dr. Ernani Hadiyati, S.E., M.M."}
           </Text>
+          <Text style={styles.signPos}>NIP. —</Text>
         </View>
 
         <Text style={styles.footerNote}>
-          Tembusan: 1) Yth. Ketua Yayasan Pembina Pendidikan Gajayana; 2) Bagian Kepegawaian
-          Universitas Gajayana Malang; 3) Pegawai yang bersangkutan; 4) Arsip. · Dokumen ini
-          dihasilkan oleh SIM KGB Universitas Gajayana Malang pada{" "}
+          Dokumen ini dihasilkan oleh SIM KGB Universitas Gajayana Malang pada{" "}
           {formatDateID(new Date())}.
         </Text>
+      </Page>
+
+      {/* Page 2 — Lampiran (attachment table) */}
+      <Page size="A4" orientation="landscape" style={styles.page}>
+        <Text style={styles.lampHeader}>
+          Lampiran Surat No. : {record.coverLetterNumber ?? "-"}
+        </Text>
+
+        <View style={styles.table}>
+          <View style={styles.tr}>
+            <Text style={[styles.th, { width: `${COLW.no}%` }]}>No.</Text>
+            <Text style={[styles.th, { width: `${COLW.nama}%` }]}>Nama</Text>
+            <Text style={[styles.th, { width: `${COLW.nis}%` }]}>NIS</Text>
+            <Text style={[styles.th, { width: `${COLW.golLama}%` }]}>Gol. Lama</Text>
+            <Text style={[styles.th, { width: `${COLW.thnMasuk}%` }]}>Tahun Masuk</Text>
+            <Text style={[styles.th, { width: `${COLW.masaKerja}%` }]}>Masa Kerja</Text>
+            <Text style={[styles.th, { width: `${COLW.unit}%` }]}>Unit Kerja</Text>
+            <Text style={[styles.th, { width: `${COLW.gajiLama}%` }]}>Gaji Pokok Lama</Text>
+            <Text style={[styles.th, { width: `${COLW.gajiBaru}%` }]}>Gaji Pokok Baru</Text>
+            <Text style={[styles.th, { width: `${COLW.golBaru}%` }]}>Gol. Baru</Text>
+            <Text style={[styles.th, { width: `${COLW.tmt}%` }]}>TMT</Text>
+            <Text style={[styles.th, { width: `${COLW.rapel}%` }]}>
+              Total Rapel{"\n"}(bln)
+            </Text>
+          </View>
+          <View style={styles.tr}>
+            <Text style={[styles.tdCenter, { width: `${COLW.no}%` }]}>1</Text>
+            <Text style={[styles.td, { width: `${COLW.nama}%` }]}>{emp.fullName}</Text>
+            <Text style={[styles.tdCenter, { width: `${COLW.nis}%` }]}>{emp.nip}</Text>
+            <Text style={[styles.tdCenter, { width: `${COLW.golLama}%` }]}>{golLama}</Text>
+            <Text style={[styles.tdCenter, { width: `${COLW.thnMasuk}%` }]}>
+              {formatDateID(emp.hireDate)}
+            </Text>
+            <Text style={[styles.tdCenter, { width: `${COLW.masaKerja}%` }]}>{masaKerja}</Text>
+            <Text style={[styles.td, { width: `${COLW.unit}%` }]}>{unit}</Text>
+            <Text style={[styles.tdRight, { width: `${COLW.gajiLama}%` }]}>
+              {formatRupiah(record.currentSalary)}
+            </Text>
+            <Text style={[styles.tdRight, { width: `${COLW.gajiBaru}%` }]}>
+              {formatRupiah(record.projectedNewSalary)}
+            </Text>
+            <Text style={[styles.tdCenter, { width: `${COLW.golBaru}%` }]}>{golBaru}</Text>
+            <Text style={[styles.tdCenter, { width: `${COLW.tmt}%` }]}>
+              {formatDateID(record.projectedEffectiveDate)}
+            </Text>
+            <Text style={[styles.tdCenter, { width: `${COLW.rapel}%` }]}>{rapelMonths}</Text>
+          </View>
+        </View>
+
+        <View style={{ marginTop: 22 }}>
+          <Text style={{ marginLeft: "55%" }}>Rektor,</Text>
+          <Text
+            style={{
+              marginLeft: "55%",
+              marginTop: 46,
+              fontFamily: "Helvetica-Bold",
+              textDecoration: "underline",
+            }}
+          >
+            {record.rectorSignedBy?.name ?? "Prof. Dr. Ernani Hadiyati, S.E., M.M."}
+          </Text>
+          <Text style={{ marginLeft: "55%", fontSize: 10, color: "#444" }}>NIP. —</Text>
+        </View>
       </Page>
     </Document>
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={styles.rowColon}>:</Text>
-      <Text style={styles.rowValue}>{value}</Text>
-    </View>
-  );
+function masaKerjaFrom(start: Date, end: Date): string {
+  let years = end.getFullYear() - start.getFullYear();
+  let months = end.getMonth() - start.getMonth();
+  if (end.getDate() < start.getDate()) months -= 1;
+  if (months < 0) {
+    years -= 1;
+    months += 12;
+  }
+  years = Math.max(0, years);
+  months = Math.max(0, months);
+  return `${String(years).padStart(2, "0")} th ${String(months).padStart(2, "0")} bln`;
 }

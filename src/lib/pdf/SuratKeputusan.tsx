@@ -1,6 +1,25 @@
+/**
+ * Penetapan Gaji Berkala (Yayasan → Rektor) — layout based on the
+ * institutional template "Contoh Penetapan Berkala dari Yayasan.doc".
+ *
+ * This letter is the final "SK Berkala" in the workflow. It is issued by
+ * Yayasan Pembina Pendidikan Gajayana after approving the Rektor's Surat
+ * Pengantar. The template is a short numbered-item letter, not a formal
+ * "MEMUTUSKAN" decree — this component reproduces that template exactly,
+ * wiring each placeholder to the corresponding IncrementHistory/Employee
+ * field.
+ */
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
-import type { IncrementHistory, Employee, DosenDetail, StaffDetail, AcademicRank, PayGrade, User } from "@prisma/client";
-import { formatDateID, formatLongDateID, formatRupiah, terbilangRupiah } from "@/lib/format";
+import type {
+  IncrementHistory,
+  Employee,
+  DosenDetail,
+  StaffDetail,
+  AcademicRank,
+  PayGrade,
+  User,
+} from "@prisma/client";
+import { formatDateID, formatLongDateID } from "@/lib/format";
 
 type IncrementWithRelations = IncrementHistory & {
   employee: Employee & {
@@ -12,96 +31,77 @@ type IncrementWithRelations = IncrementHistory & {
 
 const styles = StyleSheet.create({
   page: {
-    paddingTop: 40,
+    paddingTop: 48,
     paddingBottom: 60,
     paddingHorizontal: 60,
     fontSize: 11,
     fontFamily: "Helvetica",
-    lineHeight: 1.45,
+    lineHeight: 1.55,
     color: "#111111",
   },
   header: {
     textAlign: "center",
     borderBottom: "2 solid #0a3b7a",
     paddingBottom: 10,
-    marginBottom: 14,
+    marginBottom: 18,
   },
-  hdrSmall: { fontSize: 11 },
-  hdrBig: {
-    fontSize: 14,
-    fontFamily: "Helvetica-Bold",
-    marginTop: 2,
-  },
+  hdrOrg: { fontSize: 14, fontFamily: "Helvetica-Bold" },
+  hdrSub: { fontSize: 11, marginTop: 2 },
   hdrAddress: { fontSize: 9, marginTop: 2 },
+  metaRow: { flexDirection: "row", marginBottom: 2 },
+  metaLabel: { width: 70 },
+  metaColon: { width: 10 },
+  metaValue: { flex: 1 },
   title: {
     textAlign: "center",
-    marginTop: 12,
+    marginTop: 14,
     marginBottom: 2,
     fontSize: 12,
     fontFamily: "Helvetica-Bold",
     textDecoration: "underline",
   },
-  subtitle: {
-    textAlign: "center",
-    marginBottom: 2,
-    fontSize: 11,
+  subtitle: { textAlign: "center", marginBottom: 16, fontSize: 11 },
+  paragraph: { marginBottom: 8, textAlign: "justify" },
+  numRow: { flexDirection: "row", marginBottom: 2 },
+  numNo: { width: 26 },
+  numLabel: { width: 160 },
+  numColon: { width: 10 },
+  numValue: { flex: 1, fontFamily: "Helvetica-Bold" },
+  subNote: { marginLeft: 196, marginTop: 1, marginBottom: 6, fontSize: 10, color: "#333" },
+  bridgeLine: {
+    marginTop: 10,
+    marginBottom: 10,
     fontFamily: "Helvetica-Bold",
-  },
-  number: { textAlign: "center", marginBottom: 14, fontSize: 11 },
-  sectionHeading: {
-    fontFamily: "Helvetica-Bold",
-    marginTop: 6,
-    marginBottom: 2,
-  },
-  paragraph: { marginBottom: 6, textAlign: "justify" },
-  row: { flexDirection: "row", marginBottom: 1 },
-  rowLabel: { width: 130 },
-  rowColon: { width: 10 },
-  rowValue: { flex: 1, fontFamily: "Helvetica-Bold" },
-  considerItem: { flexDirection: "row", marginBottom: 4 },
-  considerLabel: { width: 18 },
-  memutuskan: {
-    marginTop: 12,
-    marginBottom: 8,
-    textAlign: "center",
-    fontFamily: "Helvetica-Bold",
-    textDecoration: "underline",
-  },
-  dictum: {
-    marginBottom: 6,
     textAlign: "justify",
   },
-  signBox: {
-    marginTop: 30,
-    marginLeft: "55%",
-    width: "45%",
-  },
+  signBox: { marginTop: 30, marginLeft: "55%", width: "45%" },
   signLine: { marginTop: 54, fontFamily: "Helvetica-Bold", textDecoration: "underline" },
-  footerNote: {
-    marginTop: 24,
-    fontSize: 9,
-    color: "#555",
-  },
+  signPos: { marginTop: 2, fontSize: 10, color: "#444" },
+  tembusan: { marginTop: 20, fontSize: 10 },
+  tembusanItem: { marginLeft: 20 },
 });
 
 export function SuratKeputusanDocument({ record }: { record: IncrementWithRelations }) {
   const emp = record.employee;
-  const employeeType = emp.type === "DOSEN" ? "Dosen Tetap" : "Tenaga Kependidikan";
-  const jabatanLine =
+  const golLabel =
     emp.type === "DOSEN"
       ? emp.dosenDetail?.academicRank.name ?? "-"
-      : `${emp.staffDetail?.payGrade.code ?? "-"} (${emp.staffDetail?.payGrade.name ?? "-"})`;
+      : `${emp.staffDetail?.payGrade.name ?? "-"} / ${emp.staffDetail?.payGrade.code ?? "-"}`;
   const unitLine =
     emp.type === "DOSEN"
-      ? `${emp.dosenDetail?.faculty ?? "-"} - Program Studi ${emp.dosenDetail?.studyProgram ?? "-"}`
-      : `${emp.staffDetail?.unit ?? "-"} - ${emp.staffDetail?.position ?? "-"}`;
+      ? `${emp.dosenDetail?.faculty ?? "-"} / ${emp.dosenDetail?.studyProgram ?? "-"}`
+      : emp.staffDetail?.unit ?? "-";
+  const masaLama = masaKerjaOn(emp.hireDate, emp.lastIncrementDate ?? record.effectiveDate);
+  const masaBaru = masaKerjaOn(emp.hireDate, record.effectiveDate);
+  const nisUpper = (emp.nip ?? "").toUpperCase();
+  const decreeDate = record.decreeDate ?? new Date();
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
-          <Text style={styles.hdrSmall}>YAYASAN PEMBINA PENDIDIKAN GAJAYANA</Text>
-          <Text style={styles.hdrBig}>UNIVERSITAS GAJAYANA MALANG</Text>
+          <Text style={styles.hdrOrg}>YAYASAN PEMBINA PENDIDIKAN GAJAYANA</Text>
+          <Text style={styles.hdrSub}>UNIVERSITAS GAJAYANA MALANG</Text>
           <Text style={styles.hdrAddress}>
             Jalan Mertojoyo Blok L, Merjosari, Kecamatan Lowokwaru, Kota Malang, Jawa Timur
           </Text>
@@ -110,129 +110,138 @@ export function SuratKeputusanDocument({ record }: { record: IncrementWithRelati
           </Text>
         </View>
 
-        <Text style={styles.title}>KEPUTUSAN REKTOR UNIVERSITAS GAJAYANA MALANG</Text>
-        <Text style={styles.subtitle}>
-          TENTANG KENAIKAN GAJI BERKALA {employeeType.toUpperCase()}
-        </Text>
-        <Text style={styles.number}>Nomor: {record.decreeNumber ?? "-"}</Text>
-
-        <Text style={styles.sectionHeading}>REKTOR UNIVERSITAS GAJAYANA MALANG,</Text>
-
-        <Text style={styles.sectionHeading}>Menimbang:</Text>
-        <View style={styles.considerItem}>
-          <Text style={styles.considerLabel}>a.</Text>
-          <Text style={{ flex: 1, textAlign: "justify" }}>
-            bahwa saudara/saudari yang namanya tercantum dalam keputusan ini telah memenuhi syarat untuk
-            diberikan Kenaikan Gaji Berkala (KGB) berdasarkan masa kerja dan evaluasi kinerja;
-          </Text>
-        </View>
-        <View style={styles.considerItem}>
-          <Text style={styles.considerLabel}>b.</Text>
-          <Text style={{ flex: 1, textAlign: "justify" }}>
-            bahwa berdasarkan pertimbangan sebagaimana dimaksud pada huruf a, perlu ditetapkan Keputusan
-            Rektor tentang Kenaikan Gaji Berkala yang bersangkutan.
-          </Text>
-        </View>
-
-        <Text style={styles.sectionHeading}>Mengingat:</Text>
-        <View style={styles.considerItem}>
-          <Text style={styles.considerLabel}>1.</Text>
-          <Text style={{ flex: 1, textAlign: "justify" }}>
-            Undang-Undang Nomor 12 Tahun 2012 tentang Pendidikan Tinggi;
-          </Text>
-        </View>
-        <View style={styles.considerItem}>
-          <Text style={styles.considerLabel}>2.</Text>
-          <Text style={{ flex: 1, textAlign: "justify" }}>
-            Peraturan Kepegawaian Universitas Gajayana Malang tentang Penggajian Pegawai;
-          </Text>
-        </View>
-        <View style={styles.considerItem}>
-          <Text style={styles.considerLabel}>3.</Text>
-          <Text style={{ flex: 1, textAlign: "justify" }}>
-            Statuta Universitas Gajayana Malang yang berlaku.
-          </Text>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 12 }}>
+          <View style={{ width: "60%" }}>
+            <View style={styles.metaRow}>
+              <Text style={styles.metaLabel}>Nomor</Text>
+              <Text style={styles.metaColon}>:</Text>
+              <Text style={styles.metaValue}>{record.decreeNumber ?? "-"}</Text>
+            </View>
+            <View style={styles.metaRow}>
+              <Text style={styles.metaLabel}>Lampiran</Text>
+              <Text style={styles.metaColon}>:</Text>
+              <Text style={styles.metaValue}>1 Berkas</Text>
+            </View>
+            <View style={styles.metaRow}>
+              <Text style={styles.metaLabel}>Perihal</Text>
+              <Text style={styles.metaColon}>:</Text>
+              <Text style={[styles.metaValue, { fontFamily: "Helvetica-Bold" }]}>
+                PENETAPAN GAJI BERKALA
+              </Text>
+            </View>
+            <View style={styles.metaRow}>
+              <Text style={styles.metaLabel}></Text>
+              <Text style={styles.metaColon}></Text>
+              <Text style={styles.metaValue}>Atas Nama {emp.fullName}</Text>
+            </View>
+          </View>
+          <Text style={{ fontSize: 11 }}>{formatLongDateID(decreeDate)}</Text>
         </View>
 
-        <Text style={styles.memutuskan}>MEMUTUSKAN</Text>
+        <View style={{ marginBottom: 16 }}>
+          <View style={styles.metaRow}>
+            <Text style={styles.metaLabel}>KEPADA</Text>
+            <Text style={styles.metaColon}>:</Text>
+            <Text style={styles.metaValue}>Yth. Rektor Universitas Gajayana</Text>
+          </View>
+          <Text style={{ marginLeft: 80 }}>Di</Text>
+          <Text style={{ marginLeft: 80, fontFamily: "Helvetica-Bold" }}>Malang</Text>
+        </View>
 
+        <Text style={styles.paragraph}>Dengan hormat,</Text>
         <Text style={styles.paragraph}>
-          <Text style={{ fontFamily: "Helvetica-Bold" }}>Menetapkan:</Text> Keputusan Rektor Universitas Gajayana Malang
-          tentang Kenaikan Gaji Berkala bagi pegawai sebagaimana tersebut di bawah ini.
+          Dengan ini diberitahukan bahwa berdasarkan hasil penilaian pelaksanaan pekerjaan dan
+          dipenuhinya masa kerja dan syarat-syarat lainnya kepada :
         </Text>
 
-        <Text style={styles.sectionHeading}>KESATU:</Text>
-        <Text style={styles.dictum}>
-          Memberikan Kenaikan Gaji Berkala kepada pegawai Universitas Gajayana Malang sebagai berikut:
-        </Text>
+        <NumRow no="01." label="N a m a" value={emp.fullName.toUpperCase()} />
+        <NumRow no="02." label="Nomor Induk Staf" value={nisUpper} />
+        <NumRow no="03." label="Pangkat / Golongan" value={golLabel.toUpperCase()} />
+        <NumRow no="04." label="Tahun Masuk" value={formatLongDateID(emp.hireDate).toUpperCase()} />
+        <NumRow no="05." label="Status" value="PEGAWAI TETAP YAYASAN" />
+        <NumRow no="06." label="Masa Kerja" value={masaLama.toUpperCase()} />
+        <NumRow no="07." label="Unit Kerja" value={unitLine.toUpperCase()} />
+        <NumRow no="08." label="Gaji Pokok Lama" value={`Rp. ${formatRupiahPlain(record.previousSalary)}`} />
+        {emp.lastIncrementDate && (
+          <Text style={styles.subNote}>
+            (Berdasarkan Surat Keputusan Penyesuaian Gaji Pokok Pegawai, tanggal{" "}
+            {formatDateID(emp.lastIncrementDate)})
+          </Text>
+        )}
 
-        <View style={{ marginBottom: 6 }}>
-          <Row label="Nama" value={emp.fullName} />
-          <Row label="NIP" value={emp.nip} />
-          {emp.type === "DOSEN" && emp.dosenDetail && (
-            <Row label="NIDN" value={emp.dosenDetail.nidn} />
-          )}
-          <Row label="Tempat/Tgl. Lahir" value={`${formatDateID(emp.birthDate)}`} />
-          <Row label="Jenis Kelamin" value={emp.gender === "MALE" ? "Laki-laki" : "Perempuan"} />
-          <Row label="Status Pegawai" value={employeeType} />
-          <Row label={emp.type === "DOSEN" ? "Jabatan Akademik" : "Golongan Ruang"} value={jabatanLine} />
-          <Row label={emp.type === "DOSEN" ? "Fakultas / Prodi" : "Unit Kerja"} value={unitLine} />
-          <Row label="TMT Mulai Kerja" value={formatDateID(emp.hireDate)} />
-        </View>
+        <Text style={styles.bridgeLine}>Dapat diberikan kenaikan gaji berkala hingga memperoleh :</Text>
 
-        <Text style={styles.sectionHeading}>KEDUA:</Text>
-        <Text style={styles.dictum}>
-          Menetapkan gaji pokok baru terhitung mulai tanggal {" "}
-          <Text style={{ fontFamily: "Helvetica-Bold" }}>{formatLongDateID(record.effectiveDate)}</Text>
-          , dengan rincian sebagai berikut:
-        </Text>
-        <View style={{ marginBottom: 6 }}>
-          <Row label="Gaji Pokok Lama" value={formatRupiah(record.previousSalary)} />
-          <Row label="Kenaikan" value={formatRupiah(record.incrementAmount)} />
-          <Row label="Gaji Pokok Baru" value={formatRupiah(record.newSalary)} />
-          <Row
-            label="Terbilang"
-            value={capitalize(terbilangRupiah(record.newSalary))}
-          />
-        </View>
+        <NumRow no="09." label="Gaji Pokok Baru" value={`Rp. ${formatRupiahPlain(record.newSalary)}`} />
+        <NumRow no="10." label="Berdasarkan masa kerja" value={masaBaru.toUpperCase()} />
+        <NumRow no="11." label="Dalam Pangkat/Gol." value={golLabel.toUpperCase()} />
+        <NumRow
+          no="12."
+          label="Mulai tanggal"
+          value={formatLongDateID(record.effectiveDate).toUpperCase()}
+        />
 
-        <Text style={styles.sectionHeading}>KETIGA:</Text>
-        <Text style={styles.dictum}>
-          {record.reason ?? "Kenaikan Gaji Berkala ini diberikan sebagai penghargaan atas masa kerja dan kinerja yang telah dijalankan."}
-        </Text>
-
-        <Text style={styles.sectionHeading}>KEEMPAT:</Text>
-        <Text style={styles.dictum}>
-          Keputusan ini mulai berlaku pada tanggal ditetapkan, dengan ketentuan apabila di kemudian hari terdapat
-          kekeliruan akan diadakan perbaikan sebagaimana mestinya.
+        <Text style={[styles.paragraph, { marginTop: 14 }]}>
+          Demikian atas perhatiannya, kami ucapkan terima kasih.
         </Text>
 
         <View style={styles.signBox}>
-          <Text>Ditetapkan di : Malang</Text>
-          <Text>Pada tanggal : {formatLongDateID(record.decreeDate)}</Text>
-          <Text style={{ marginTop: 8 }}>{record.signedByPosition ?? "Rektor Universitas Gajayana Malang"}</Text>
-          <Text style={styles.signLine}>{record.signedByName ?? "_____________________"}</Text>
+          <Text>Ketua,</Text>
+          <Text style={styles.signLine}>
+            {record.signedByName ?? "Dr. Rosidi, SE, MM. Ak"}
+          </Text>
+          <Text style={styles.signPos}>
+            {record.signedByPosition ?? "Ketua Yayasan Pembina Pendidikan Gajayana"}
+          </Text>
         </View>
 
-        <Text style={styles.footerNote}>
-          Tembusan: 1) Yth. Bagian Kepegawaian UNIGA Malang; 2) Yth. Biro Keuangan UNIGA Malang; 3) Arsip. · Dokumen ini dihasilkan oleh SIM
-          KGB pada {formatDateID(new Date())}.
+        <View style={styles.tembusan}>
+          <Text>TEMBUSAN : disampaikan kepada :</Text>
+          <Text style={styles.tembusanItem}>1. Yth. Kepala Biro Adm. Umum Universitas Gajayana Malang</Text>
+          <Text style={styles.tembusanItem}>2. Yth. Kepala Bagian Keuangan Universitas Gajayana Malang</Text>
+          <Text style={styles.tembusanItem}>3. Yth. Pegawai Yang Bersangkutan</Text>
+          <Text style={styles.tembusanItem}>4. A r s i p</Text>
+        </View>
+
+        <Text style={{ marginTop: 14, fontSize: 9, color: "#555" }}>
+          Dokumen ini dihasilkan oleh SIM KGB Universitas Gajayana Malang pada{" "}
+          {formatDateID(new Date())}.
         </Text>
       </Page>
     </Document>
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function NumRow({ no, label, value }: { no: string; label: string; value: string }) {
   return (
-    <View style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={styles.rowColon}>:</Text>
-      <Text style={styles.rowValue}>{value}</Text>
+    <View style={styles.numRow}>
+      <Text style={styles.numNo}>{no}</Text>
+      <Text style={styles.numLabel}>{label}</Text>
+      <Text style={styles.numColon}>:</Text>
+      <Text style={styles.numValue}>{value}</Text>
     </View>
   );
 }
 
-function capitalize(s: string) {
-  return s.charAt(0).toUpperCase() + s.slice(1);
+function masaKerjaOn(start: Date, end: Date): string {
+  let years = end.getFullYear() - start.getFullYear();
+  let months = end.getMonth() - start.getMonth();
+  if (end.getDate() < start.getDate()) months -= 1;
+  if (months < 0) {
+    years -= 1;
+    months += 12;
+  }
+  years = Math.max(0, years);
+  months = Math.max(0, months);
+  return `${years} TAHUN ${String(months).padStart(2, "0")} BULAN`;
+}
+
+function formatRupiahPlain(n: number): string {
+  // "Rp 1.234.567,00" without the "Rp" prefix; used inside "Rp. {value}" strings.
+  const parts = Math.floor(n).toString().split("").reverse();
+  const grouped: string[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    if (i > 0 && i % 3 === 0) grouped.push(".");
+    grouped.push(parts[i]);
+  }
+  return grouped.reverse().join("") + ",00";
 }

@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { computeIncrementAmount, computeNextIncrementDate } from "@/lib/eligibility";
 import { saveUpload } from "@/lib/uploads";
-import { requiredDocumentsFor } from "@/lib/requests";
+import { requiredDocumentsFor, workflowEnabledFor } from "@/lib/requests";
 import type { DocumentKind, IncrementRequestStatus } from "@prisma/client";
 
 function assertTransition(
@@ -38,6 +38,12 @@ export async function submitIncrementRequestAction(formData: FormData): Promise<
     throw new Error("Akun ini belum tertaut dengan data pegawai.");
   }
   const employee = user.employee;
+
+  if (!workflowEnabledFor(employee.type)) {
+    throw new Error(
+      "Alur KGB untuk Dosen belum dibuka. Saat ini sistem fokus pada Tenaga Kependidikan.",
+    );
+  }
 
   const notes = (formData.get("notes") as string | null)?.toString() ?? null;
 

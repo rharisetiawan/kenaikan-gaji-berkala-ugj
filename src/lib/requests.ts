@@ -1,5 +1,11 @@
 import type { IncrementRequestStatus, DocumentKind, EmployeeType } from "@prisma/client";
 
+// Feature flag: the Dosen (Lecturer) workflow — including the Bukti Tridharma
+// upload — is on hold per product scope. Schema and roles remain in place so
+// Dosen data can coexist, but self-service submission is blocked for Dosen
+// until this flips to true.
+export const DOSEN_WORKFLOW_ENABLED = false;
+
 export const REQUIRED_DOCUMENTS_STAFF: DocumentKind[] = ["SKP", "LAST_SK_BERKALA"];
 export const REQUIRED_DOCUMENTS_DOSEN: DocumentKind[] = [
   "SKP",
@@ -9,6 +15,10 @@ export const REQUIRED_DOCUMENTS_DOSEN: DocumentKind[] = [
 
 export function requiredDocumentsFor(type: EmployeeType): DocumentKind[] {
   return type === "DOSEN" ? REQUIRED_DOCUMENTS_DOSEN : REQUIRED_DOCUMENTS_STAFF;
+}
+
+export function workflowEnabledFor(type: EmployeeType): boolean {
+  return type === "STAFF" || DOSEN_WORKFLOW_ENABLED;
 }
 
 export function humanDocumentKind(kind: DocumentKind): string {

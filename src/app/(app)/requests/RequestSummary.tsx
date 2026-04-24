@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { formatDateID, formatRupiah } from "@/lib/format";
 import { humanDocumentKind, humanRequestStatus, requestStatusColor } from "@/lib/requests";
+import { rapelBreakdown } from "@/lib/rapel";
 import type {
   Employee,
   IncrementRequest,
@@ -17,6 +18,7 @@ export type RequestWithRelations = IncrementRequest & {
 };
 
 export function RequestSummary({ r }: { r: RequestWithRelations }) {
+  const rapel = rapelBreakdown(r.currentSalary, r.projectedNewSalary, r.projectedEffectiveDate);
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -39,7 +41,26 @@ export function RequestSummary({ r }: { r: RequestWithRelations }) {
             <Row label="Gaji Pokok Baru" value={formatRupiah(r.projectedNewSalary)} bold />
             <Row label="Kenaikan" value={`+${formatRupiah(r.incrementAmount)}`} />
             <Row label="TMT Proyeksi" value={formatDateID(r.projectedEffectiveDate)} />
+            {rapel.months > 0 && (
+              <>
+                <Row
+                  label="Keterlambatan"
+                  value={`${rapel.months} bulan`}
+                />
+                <Row
+                  label="Total Rapel"
+                  value={formatRupiah(rapel.amount)}
+                  bold
+                />
+              </>
+            )}
           </dl>
+          {rapel.months > 0 && (
+            <p className="mt-3 rounded-md border border-rose-200 bg-rose-50 p-2 text-xs text-rose-800">
+              Pengajuan ini terlambat {rapel.months} bulan dari TMT. Yayasan wajib menyiapkan
+              rapel sebesar {formatRupiah(rapel.amount)} (selisih bulanan {formatRupiah(rapel.delta)}).
+            </p>
+          )}
           {r.employeeNotes && (
             <p className="mt-3 rounded-md bg-slate-50 p-2 text-xs text-slate-600">
               <span className="font-medium">Catatan pegawai:</span> {r.employeeNotes}
