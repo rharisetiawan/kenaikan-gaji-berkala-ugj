@@ -54,8 +54,29 @@ const ICONS: Record<IconName, React.ComponentType<{ className?: string }>> = {
 
 const STORAGE_PREFIX = "kgb-sidebar-group:";
 
-function isPathActive(pathname: string, href: string): boolean {
-  return pathname === href || pathname.startsWith(href + "/");
+/**
+ * Pick the single best-matching item href for the current pathname.
+ * "Best" = longest href that is either an exact match or a strict
+ * prefix of the pathname. This avoids false-positive highlights when
+ * sibling items share a prefix (e.g. /admin vs /admin/users) or when a
+ * parent path lives in a different group from its sub-routes (e.g.
+ * /hr in "kgb" group, /hr/kelengkapan in "hris" group).
+ */
+function resolveActiveHref(
+  pathname: string,
+  groups: ResolvedNavGroup[],
+): string | null {
+  let best: string | null = null;
+  for (const group of groups) {
+    for (const item of group.items) {
+      const matches =
+        pathname === item.href || pathname.startsWith(item.href + "/");
+      if (matches && (best === null || item.href.length > best.length)) {
+        best = item.href;
+      }
+    }
+  }
+  return best;
 }
 
 const subscribeStorage = (cb: () => void) => {
@@ -91,6 +112,7 @@ interface SidebarClientProps {
 
 export function SidebarClient({ groups }: SidebarClientProps) {
   const pathname = usePathname();
+  const activeHref = resolveActiveHref(pathname, groups);
   const [mobileOpen, setMobileOpen] = useState(false);
   const closeDrawer = () => setMobileOpen(false);
 
@@ -123,14 +145,14 @@ export function SidebarClient({ groups }: SidebarClientProps) {
               <FlatLink
                 key={group.id}
                 item={group.items[0]}
-                pathname={pathname}
+                activeHref={activeHref}
                 onNavigate={closeDrawer}
               />
             ) : (
               <NavGroupBlock
                 key={group.id}
                 group={group}
-                pathname={pathname}
+                activeHref={activeHref}
                 onNavigate={closeDrawer}
               />
             ),
@@ -143,16 +165,14 @@ export function SidebarClient({ groups }: SidebarClientProps) {
 
 function NavGroupBlock({
   group,
-  pathname,
+  activeHref,
   onNavigate,
 }: {
   group: ResolvedNavGroup;
-  pathname: string;
+  activeHref: string | null;
   onNavigate: () => void;
 }) {
-  const containsActive = group.items.some((item) =>
-    isPathActive(pathname, item.href),
-  );
+  const containsActive = group.items.some((item) => item.href === activeHref);
 
   const { isOpen: storedOpen, toggle } = useGroupOpen(group.id, containsActive);
 
@@ -186,7 +206,7 @@ function NavGroupBlock({
             <SubLink
               key={item.href}
               item={item}
-              pathname={pathname}
+              activeHref={activeHref}
               onNavigate={onNavigate}
             />
           ))}
@@ -198,14 +218,14 @@ function NavGroupBlock({
 
 function FlatLink({
   item,
-  pathname,
+  activeHref,
   onNavigate,
 }: {
   item: ResolvedNavItem;
-  pathname: string;
+  activeHref: string | null;
   onNavigate: () => void;
 }) {
-  const active = isPathActive(pathname, item.href);
+  const active = item.href === activeHref;
   const Icon = ICONS[item.icon];
   return (
     <Link
@@ -225,14 +245,14 @@ function FlatLink({
 
 function SubLink({
   item,
-  pathname,
+  activeHref,
   onNavigate,
 }: {
   item: ResolvedNavItem;
-  pathname: string;
+  activeHref: string | null;
   onNavigate: () => void;
 }) {
-  const active = isPathActive(pathname, item.href);
+  const active = item.href === activeHref;
   const Icon = ICONS[item.icon];
   return (
     <Link
