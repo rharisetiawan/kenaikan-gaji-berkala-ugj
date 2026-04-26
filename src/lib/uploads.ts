@@ -88,22 +88,20 @@ function isBlobStorageEnabled(): boolean {
 /** Map our internal `kind` codes to a slugged Drive subfolder name. */
 function jenisFolderFor(kind: string): string {
   const k = kind.toLowerCase();
-  // Known KGB document kinds (DocumentKind enum) + cert / letterhead.
+  // Known kinds: lowercased DocumentKind enum members from Prisma schema
+  // (SKP, LAST_SK_BERKALA, TRIDHARMA_PROOF, SURAT_PENGANTAR, SK_BERKALA)
+  // plus app-specific tags ("cert" for sertifikasi, "letterhead" for kop).
   switch (k) {
     case "cert":
       return "sertifikat";
     case "letterhead":
       return "kop-surat";
-    case "sk_pengangkatan":
-    case "sk_kgb_terakhir":
     case "skp":
-    case "kontrak":
-    case "ijazah":
-    case "lainnya":
+    case "last_sk_berkala":
+    case "tridharma_proof":
+    case "surat_pengantar":
+    case "sk_berkala":
       return "dokumen-pengajuan";
-    case "bkd":
-    case "bukti_bkd":
-      return "bukti-bkd";
     default:
       return k.replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "lainnya";
   }
