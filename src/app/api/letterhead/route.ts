@@ -21,10 +21,21 @@ export async function GET() {
   if (s.letterheadDriveFileId) {
     try {
       const { bytes, mimeType } = await streamDriveFile(s.letterheadDriveFileId);
+      // Defense-in-depth: never trust the MIME from Drive metadata. Force
+      // an image-only allowlist (uploadLetterheadAction already restricts
+      // extensions to png/jpg/webp at upload time). Anything else falls
+      // back to image/png — sniffing is also disabled via nosniff.
+      const safeMime = ["image/png", "image/jpeg", "image/webp"].includes(mimeType)
+        ? mimeType
+        : "image/png";
       return new NextResponse(new Uint8Array(bytes), {
         headers: {
-          "Content-Type": mimeType,
+          "Content-Type": safeMime,
           "X-Content-Type-Options": "nosniff",
+          // Match sibling download routes — sandbox prevents an attacker-
+          // controlled byte stream from being interpreted as HTML/JS even
+          // if a misconfiguration ever served the wrong Content-Type.
+          "Content-Security-Policy": "default-src 'none'; sandbox",
           "Cache-Control": "private, max-age=300",
         },
       });
