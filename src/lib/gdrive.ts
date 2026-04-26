@@ -267,3 +267,74 @@ export async function deleteDriveFile(fileId: string): Promise<void> {
   const drive = getDrive();
   await drive.files.delete({ fileId, supportsAllDrives: true });
 }
+
+/**
+ * Resolve (and lazily create) a single named folder directly under the
+ * Shared Drive root. Used by the backup cron to keep its `_backups/`
+ * folder out of the date/jenis tree that hosts user uploads.
+ */
+export async function ensureFolderUnderRoot(name: string): Promise<string> {
+  const root = getRootFolderId();
+  return ensureChildFolder(root, name);
+}
+
+/**
+ * Upload arbitrary bytes to a specific Drive folder, with a caller-
+ * chosen file name. Unlike `uploadFileToDrive` this does NOT prefix the
+ * record id, build the year/month tree, or set a public permission —
+ * it's intended for ops artifacts (DB backups) that should stay
+ * service-account-only.
+ */
+export async function uploadBytesToFolder(
+  folderId: string,
+  fileName: string,
+  bytes: Buffer,
+  mimeType: string,
+): Promise<{ fileId: string; size: number }> {
+  const drive = getDrive();
+  const created = await drive.files.create({
+    requestBody: {
+      name: fileName,
+      parents: [folderId],
+      mimeType,
+    },
+    media: {
+      mimeType,
+      body: Readable.from(bytes),
+    },
+    fields: "id, size",
+    supportsAllDrives: true,
+  });
+  const fileId = created.data.id;
+  if (!fileId) throw new Error("Drive upload returned no file id");
+  return { fileId, size: Number(created.data.size ?? bytes.byteLength) };
+}
+
+/**
+ * List non-trashed files in a folder along with their `createdTime`.
+ * Used by retention sweeps that want to delete files older than N days.
+ */
+export async function listFolderFiles(
+  folderId: string,
+): Promise<Array<{ id: string; name: string; createdTime: string }>> {
+  const drive = getDrive();
+  const out: Array<{ id: string; name: string; createdTime: string }> = [];
+  let pageToken: string | undefined;
+  do {
+    const resp = await drive.files.list({
+      q: `'${folderId}' in parents and trashed = false`,
+      fields: "nextPageToken, files(id, name, createdTime)",
+      pageSize: 100,
+      pageToken,
+      ...SHARED_DRIVE_OPTS,
+      corpora: "allDrives",
+    });
+    for (const f of resp.data.files ?? []) {
+      if (f.id && f.name && f.createdTime) {
+        out.push({ id: f.id, name: f.name, createdTime: f.createdTime });
+      }
+    }
+    pageToken = resp.data.nextPageToken ?? undefined;
+  } while (pageToken);
+  return out;
+}
