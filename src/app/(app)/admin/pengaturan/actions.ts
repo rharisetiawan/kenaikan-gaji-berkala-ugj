@@ -130,10 +130,21 @@ export async function uploadLetterheadAction(
       };
     }
     await ensureAppSettingsRow();
-    const saved = await saveUpload(file, "app-settings", "letterhead");
+    const saved = await saveUpload(file, "app-settings", "letterhead", "singleton");
+    // For Drive uploads we store the webViewLink as the canonical letterhead
+    // URL because @react-pdf/renderer doesn't have access to our auth-gated
+    // bytes route — Drive's "anyone with link" permission lets the PDF
+    // renderer fetch the image. For Blob/local fallbacks the storedPath
+    // already IS a fetchable URL or relative path.
+    const letterheadUrl = saved.driveWebViewLink
+      ? `https://drive.google.com/uc?id=${saved.driveFileId}&export=download`
+      : saved.storedPath;
     await prisma.appSetting.update({
       where: { id: "singleton" },
-      data: { letterheadUrl: saved.storedPath },
+      data: {
+        letterheadUrl,
+        letterheadDriveFileId: saved.driveFileId,
+      },
     });
 
     revalidatePath("/admin/pengaturan");
@@ -158,7 +169,7 @@ export async function clearLetterheadAction(): Promise<void> {
   await ensureAppSettingsRow();
   await prisma.appSetting.update({
     where: { id: "singleton" },
-    data: { letterheadUrl: null },
+    data: { letterheadUrl: null, letterheadDriveFileId: null },
   });
   revalidatePath("/admin/pengaturan");
 }
