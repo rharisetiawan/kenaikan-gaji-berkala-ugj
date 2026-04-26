@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { SuratPengantarDocument } from "@/lib/pdf/SuratPengantar";
 import { getOfficial } from "@/lib/officials";
-import { getLetterheadUrl } from "@/lib/app-settings";
+import { getLetterheadForPdf } from "@/lib/app-settings";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -44,7 +44,7 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
 
   const [rector, letterheadUrl] = await Promise.all([
     getOfficial("RECTOR"),
-    getLetterheadUrl(),
+    getLetterheadForPdf(),
   ]);
   const buffer = await renderToBuffer(
     <SuratPengantarDocument

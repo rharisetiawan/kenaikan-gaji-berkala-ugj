@@ -132,14 +132,13 @@ export async function uploadLetterheadAction(
     }
     await ensureAppSettingsRow();
     saved = await saveUpload(file, "app-settings", "letterhead", "singleton");
-    // For Drive uploads we store the webViewLink as the canonical letterhead
-    // URL because @react-pdf/renderer doesn't have access to our auth-gated
-    // bytes route — Drive's "anyone with link" permission lets the PDF
-    // renderer fetch the image. For Blob/local fallbacks the storedPath
-    // already IS a fetchable URL or relative path.
-    const letterheadUrl = saved.driveWebViewLink
-      ? `https://drive.google.com/uc?id=${saved.driveFileId}&export=download`
-      : saved.storedPath;
+    // PDFs read the letterhead via getLetterheadForPdf() which inlines a
+    // base64 data URI for Drive-backed files (using the service account)
+    // and falls through to letterheadUrl only for legacy Blob uploads.
+    // We therefore store the webViewLink purely as an admin convenience
+    // ("buka di Drive" link in /admin/pengaturan) — the PDF renderer
+    // never depends on the file being publicly accessible.
+    const letterheadUrl = saved.driveWebViewLink ?? saved.storedPath;
     await prisma.appSetting.update({
       where: { id: "singleton" },
       data: {
