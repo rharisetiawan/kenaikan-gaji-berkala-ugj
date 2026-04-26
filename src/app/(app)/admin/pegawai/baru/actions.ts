@@ -94,8 +94,10 @@ export async function createEmployeeAction(
 
     if (type === "DOSEN") {
       const nidn = req(formData, "nidn", "NIDN");
+      // Number("") === 0 passes Number.isFinite, so guard with > 0 to catch
+      // the empty placeholder option without leaking a Prisma FK error.
       const academicRankId = Number(formData.get("academicRankId"));
-      if (!Number.isFinite(academicRankId))
+      if (!Number.isFinite(academicRankId) || academicRankId <= 0)
         throw new Error("Jabatan akademik wajib dipilih.");
       dosenDetailCreate = {
         nidn,
@@ -105,7 +107,7 @@ export async function createEmployeeAction(
       };
     } else {
       const payGradeId = Number(formData.get("payGradeId"));
-      if (!Number.isFinite(payGradeId))
+      if (!Number.isFinite(payGradeId) || payGradeId <= 0)
         throw new Error("Golongan wajib dipilih.");
       staffDetailCreate = {
         payGradeId,

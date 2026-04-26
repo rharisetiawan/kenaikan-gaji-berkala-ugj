@@ -214,7 +214,12 @@ export function SuratPengantarDocument({
               rector?.name ??
               "Prof. Dr. Ernani Hadiyati, S.E., M.M."}
           </Text>
-          <Text style={styles.signPos}>NIP. {rector?.nip ?? "—"}</Text>
+          {/* Only show the live rector NIP when the displayed name also comes
+              from the live rector snapshot. If a historical signer is recorded
+              on the request itself, we don't have their NIP, so leave a dash. */}
+          <Text style={styles.signPos}>
+            NIP. {record.rectorSignedBy ? "—" : (rector?.nip ?? "—")}
+          </Text>
         </View>
 
         <Text style={styles.footerNote}>
@@ -285,7 +290,7 @@ export function SuratPengantarDocument({
               "Prof. Dr. Ernani Hadiyati, S.E., M.M."}
           </Text>
           <Text style={{ marginLeft: "55%", fontSize: 10, color: "#444" }}>
-            NIP. {rector?.nip ?? "—"}
+            NIP. {record.rectorSignedBy ? "—" : (rector?.nip ?? "—")}
           </Text>
         </View>
       </Page>
