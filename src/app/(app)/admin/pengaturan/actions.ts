@@ -9,7 +9,7 @@ import {
   DEFAULT_INCREMENT_PERCENT,
   DEFAULT_STAFF_MIN_PERFORMANCE_SCORE,
 } from "@/lib/app-settings";
-import { saveUpload } from "@/lib/uploads";
+import { saveUpload, rollbackUpload, type SavedUpload } from "@/lib/uploads";
 
 export interface UpdateAppSettingsState {
   success?: string;
@@ -118,6 +118,7 @@ export async function uploadLetterheadAction(
   formData: FormData,
 ): Promise<UpdateAppSettingsState> {
   await requireRole(["ADMIN"]);
+  let saved: SavedUpload | null = null;
   try {
     const file = formData.get("letterhead");
     if (!(file instanceof File) || file.size === 0) {
@@ -130,7 +131,7 @@ export async function uploadLetterheadAction(
       };
     }
     await ensureAppSettingsRow();
-    const saved = await saveUpload(file, "app-settings", "letterhead", "singleton");
+    saved = await saveUpload(file, "app-settings", "letterhead", "singleton");
     // For Drive uploads we store the webViewLink as the canonical letterhead
     // URL because @react-pdf/renderer doesn't have access to our auth-gated
     // bytes route — Drive's "anyone with link" permission lets the PDF
@@ -155,6 +156,10 @@ export async function uploadLetterheadAction(
     revalidatePath("/foundation");
     return { success: "Kop surat berhasil diunggah." };
   } catch (e) {
+    // If the file landed in Drive but the AppSetting update failed,
+    // remove the orphan so we don't leave an unreferenced kop surat
+    // sitting in Drive with a public anyone-with-link permission.
+    if (saved) await rollbackUpload(saved);
     return { error: (e as Error).message };
   }
 }
