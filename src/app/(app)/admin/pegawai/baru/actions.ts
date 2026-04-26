@@ -129,36 +129,41 @@ export async function createEmployeeAction(
     const tempPassword = generateTempPassword();
     const passwordHash = await bcrypt.hash(tempPassword, 10);
 
-    const employee = await prisma.employee.create({
-      data: {
-        nip,
-        fullName,
-        gender,
-        birthDate,
-        email,
-        type,
-        hireDate,
-        currentBaseSalary: baseSalary,
-        lastIncrementDate,
-        nextIncrementDate,
-        employmentStatus,
-        ...(dosenDetailCreate
-          ? { dosenDetail: { create: dosenDetailCreate } }
-          : {}),
-        ...(staffDetailCreate
-          ? { staffDetail: { create: staffDetailCreate } }
-          : {}),
-      },
-    });
-
-    await prisma.user.create({
-      data: {
-        email,
-        name: fullName,
-        role: "EMPLOYEE",
-        passwordHash,
-        employeeId: employee.id,
-      },
+    // Create Employee + User atomically — if the user insert races against
+    // another admin and loses the unique-email check, we don't want an
+    // orphaned Employee row left behind (the admin would then hit
+    // "NIP sudah terdaftar" on retry).
+    await prisma.$transaction(async (tx) => {
+      const employee = await tx.employee.create({
+        data: {
+          nip,
+          fullName,
+          gender,
+          birthDate,
+          email,
+          type,
+          hireDate,
+          currentBaseSalary: baseSalary,
+          lastIncrementDate,
+          nextIncrementDate,
+          employmentStatus,
+          ...(dosenDetailCreate
+            ? { dosenDetail: { create: dosenDetailCreate } }
+            : {}),
+          ...(staffDetailCreate
+            ? { staffDetail: { create: staffDetailCreate } }
+            : {}),
+        },
+      });
+      await tx.user.create({
+        data: {
+          email,
+          name: fullName,
+          role: "EMPLOYEE",
+          passwordHash,
+          employeeId: employee.id,
+        },
+      });
     });
 
     revalidatePath("/admin/users");

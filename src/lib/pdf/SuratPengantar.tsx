@@ -284,7 +284,9 @@ export function SuratPengantarDocument({
               rector?.name ??
               "Prof. Dr. Ernani Hadiyati, S.E., M.M."}
           </Text>
-          <Text style={{ marginLeft: "55%", fontSize: 10, color: "#444" }}>NIP. —</Text>
+          <Text style={{ marginLeft: "55%", fontSize: 10, color: "#444" }}>
+            NIP. {rector?.nip ?? "—"}
+          </Text>
         </View>
       </Page>
     </Document>

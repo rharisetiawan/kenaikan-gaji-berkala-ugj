@@ -63,6 +63,18 @@ export async function getSession(): Promise<SessionPayload | null> {
 export async function requireUser(): Promise<SessionPayload> {
   const session = await getSession();
   if (!session) redirect("/login");
+  // Re-validate isActive against the DB on every authenticated request so
+  // that ADMIN deactivation takes effect immediately — the JWT itself lives
+  // for 7 days, so relying on the login-time check alone would leave
+  // deactivated users with full access until the cookie expires.
+  const row = await prisma.user.findUnique({
+    where: { id: session.userId },
+    select: { isActive: true },
+  });
+  if (!row || !row.isActive) {
+    await destroySession();
+    redirect("/login?error=inactive");
+  }
   return session;
 }
 
