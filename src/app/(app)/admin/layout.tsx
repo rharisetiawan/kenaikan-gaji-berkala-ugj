@@ -34,6 +34,11 @@ export default async function AdminLayout({
       label: "Pejabat",
       blurb: "Nama Rektor & Ketua Yayasan di surat",
     },
+    {
+      href: "/admin/pengaturan",
+      label: "Pengaturan",
+      blurb: "Kop surat & aturan KGB",
+    },
   ];
 
   return (

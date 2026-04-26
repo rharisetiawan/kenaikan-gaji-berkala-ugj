@@ -17,32 +17,32 @@ datasource db {
 // -----------------------------------------------------------------------------
 
 enum UserRole {
-  ADMIN       // super-admin
-  HR          // Bagian Kepegawaian
-  RECTOR      // Rektor
-  FOUNDATION  // Yayasan Pembina Pendidikan Gajayana
-  EMPLOYEE    // Dosen atau Tenaga Kependidikan (self-service)
+  ADMIN // super-admin
+  HR // Bagian Kepegawaian
+  RECTOR // Rektor
+  FOUNDATION // Yayasan Pembina Pendidikan Gajayana
+  EMPLOYEE // Dosen atau Tenaga Kependidikan (self-service)
 }
 
 model User {
-  id             String   @id @default(cuid())
-  email          String   @unique
-  passwordHash   String
-  name           String
-  role           UserRole @default(EMPLOYEE)
-  isActive       Boolean  @default(true)
-  employee       Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
-  employeeId     String?   @unique
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  role         UserRole  @default(EMPLOYEE)
+  isActive     Boolean   @default(true)
+  employee     Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  employeeId   String?   @unique
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  generatedDecrees           IncrementHistory[]   @relation("GeneratedBy")
-  hrVerifiedRequests         IncrementRequest[]   @relation("HrVerifiedBy")
-  rectorSignedRequests       IncrementRequest[]   @relation("RectorSignedBy")
-  foundationReviewedRequests IncrementRequest[]   @relation("FoundationReviewedBy")
-  uploadedDocuments          RequestDocument[]    @relation("UploadedBy")
-  officialUpdates            OrgOfficial[]        @relation("OfficialUpdatedBy")
-  requestsFiledOnBehalf      IncrementRequest[]   @relation("FiledBy")
+  generatedDecrees           IncrementHistory[] @relation("GeneratedBy")
+  hrVerifiedRequests         IncrementRequest[] @relation("HrVerifiedBy")
+  rectorSignedRequests       IncrementRequest[] @relation("RectorSignedBy")
+  foundationReviewedRequests IncrementRequest[] @relation("FoundationReviewedBy")
+  uploadedDocuments          RequestDocument[]  @relation("UploadedBy")
+  officialUpdates            OrgOfficial[]      @relation("OfficialUpdatedBy")
+  requestsFiledOnBehalf      IncrementRequest[] @relation("FiledBy")
 }
 
 // -----------------------------------------------------------------------------
@@ -58,22 +58,22 @@ enum AcademicRankCode {
 }
 
 model AcademicRank {
-  id                 Int              @id @default(autoincrement())
-  code               AcademicRankCode @unique
-  name               String           // Indonesian display name, e.g. "Lektor Kepala"
-  minServiceYears    Int              // minimum cumulative service years expected
-  functionalAllowance Int             // tunjangan jabatan (IDR)
-  dosenDetails       DosenDetail[]
+  id                  Int              @id @default(autoincrement())
+  code                AcademicRankCode @unique
+  name                String // Indonesian display name, e.g. "Lektor Kepala"
+  minServiceYears     Int // minimum cumulative service years expected
+  functionalAllowance Int // tunjangan jabatan (IDR)
+  dosenDetails        DosenDetail[]
 }
 
 // Golongan for Tenaga Kependidikan (e.g. III/a, III/b, IV/a ...)
 model PayGrade {
-  id            Int           @id @default(autoincrement())
-  code          String        @unique // e.g. "III/a"
-  name          String        // Indonesian display name e.g. "Penata Muda"
-  baseSalary    Int           // gaji pokok (IDR)
-  level         Int           // order within the grade ladder for comparisons
-  staffDetails  StaffDetail[]
+  id           Int           @id @default(autoincrement())
+  code         String        @unique // e.g. "III/a"
+  name         String // Indonesian display name e.g. "Penata Muda"
+  baseSalary   Int // gaji pokok (IDR)
+  level        Int // order within the grade ladder for comparisons
+  staffDetails StaffDetail[]
 }
 
 // -----------------------------------------------------------------------------
@@ -138,65 +138,65 @@ enum Religion {
 }
 
 model Employee {
-  id                  String          @id @default(cuid())
-  nip                 String          @unique // Nomor Induk Pegawai
-  fullName            String
-  gender              Gender
-  birthDate           DateTime
-  email               String?         @unique
-  phone               String?
-  address             String?
-  type                EmployeeType
-  hireDate            DateTime        // Tanggal Mulai Kerja (TMT)
-  currentBaseSalary   Int             // gaji pokok berjalan (IDR)
-  lastIncrementDate   DateTime?       // TMT kenaikan terakhir
-  nextIncrementDate   DateTime        // projected next TMT (computed at write time)
-  status              EmployeeStatus  @default(ACTIVE)
-  employmentStatus    EmploymentStatus @default(TETAP)
+  id                String           @id @default(cuid())
+  nip               String           @unique // Nomor Induk Pegawai
+  fullName          String
+  gender            Gender
+  birthDate         DateTime
+  email             String?          @unique
+  phone             String?
+  address           String?
+  type              EmployeeType
+  hireDate          DateTime // Tanggal Mulai Kerja (TMT)
+  currentBaseSalary Int // gaji pokok berjalan (IDR)
+  lastIncrementDate DateTime? // TMT kenaikan terakhir
+  nextIncrementDate DateTime // projected next TMT (computed at write time)
+  status            EmployeeStatus   @default(ACTIVE)
+  employmentStatus  EmploymentStatus @default(TETAP)
 
   // HRIS Phase 1: self-editable profile fields (accreditation-ready).
   // Read-only fields (NIP, salary, golongan, TMT, etc.) remain HR-only.
-  placeOfBirth        String?
-  nik                 String?         @unique // KTP, 16 digit
-  religion            Religion?
-  lastEducation       LastEducation?
-  maritalStatus       MaritalStatus?
-  dependentsCount     Int?            // jumlah tanggungan untuk PPh21
-  emergencyContact    String?         // nama + hubungan + telp kontak darurat
-  profileUpdatedAt    DateTime?       // nudged by the HR "Kelengkapan Data" page
+  placeOfBirth     String?
+  nik              String?        @unique // KTP, 16 digit
+  religion         Religion?
+  lastEducation    LastEducation?
+  maritalStatus    MaritalStatus?
+  dependentsCount  Int? // jumlah tanggungan untuk PPh21
+  emergencyContact String? // nama + hubungan + telp kontak darurat
+  profileUpdatedAt DateTime? // nudged by the HR "Kelengkapan Data" page
 
-  createdAt           DateTime        @default(now())
-  updatedAt           DateTime        @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  dosenDetail         DosenDetail?
-  staffDetail         StaffDetail?
-  bkdEvaluations      BkdEvaluation[]
-  performanceScores   PerformanceScore[]
-  incrementHistory    IncrementHistory[]
-  incrementRequests   IncrementRequest[]
-  certifications      Certification[]
-  user                User?
+  dosenDetail       DosenDetail?
+  staffDetail       StaffDetail?
+  bkdEvaluations    BkdEvaluation[]
+  performanceScores PerformanceScore[]
+  incrementHistory  IncrementHistory[]
+  incrementRequests IncrementRequest[]
+  certifications    Certification[]
+  user              User?
 }
 
 model DosenDetail {
-  id               String       @id @default(cuid())
-  employee         Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  employeeId       String       @unique
-  nidn             String       @unique
-  nidk             String?      @unique // NIDK untuk dosen non-PNS / kontrak akademik
-  academicRank     AcademicRank @relation(fields: [academicRankId], references: [id])
-  academicRankId   Int
-  lastRankDate     DateTime?    // TMT jabatan akademik terakhir
-  faculty          String
-  studyProgram     String
+  id             String       @id @default(cuid())
+  employee       Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId     String       @unique
+  nidn           String       @unique
+  nidk           String?      @unique // NIDK untuk dosen non-PNS / kontrak akademik
+  academicRank   AcademicRank @relation(fields: [academicRankId], references: [id])
+  academicRankId Int
+  lastRankDate   DateTime? // TMT jabatan akademik terakhir
+  faculty        String
+  studyProgram   String
 
   // HRIS Phase 1: akreditasi-ready research identifiers (self-editable).
-  scopusId         String?
-  sintaId          String?
-  orcid            String?
-  googleScholarId  String?
+  scopusId        String?
+  sintaId         String?
+  orcid           String?
+  googleScholarId String?
 
-  publications     Publication[]
+  publications Publication[]
 }
 
 model StaffDetail {
@@ -206,8 +206,8 @@ model StaffDetail {
   payGrade      PayGrade  @relation(fields: [payGradeId], references: [id])
   payGradeId    Int
   lastGradeDate DateTime? // TMT golongan saat ini
-  unit          String    // unit kerja / bagian
-  position      String    // jabatan struktural / fungsional (non-akademik)
+  unit          String // unit kerja / bagian
+  position      String // jabatan struktural / fungsional (non-akademik)
 }
 
 // -----------------------------------------------------------------------------
@@ -221,38 +221,38 @@ enum BkdStatus {
 }
 
 model BkdEvaluation {
-  id          String    @id @default(cuid())
-  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  employeeId  String
-  academicYear String   // e.g. "2024/2025"
-  semester    String    // "GANJIL" or "GENAP"
-  sksLoad     Float     // beban SKS ekuivalen
-  status      BkdStatus @default(PENDING)
-  notes       String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id           String    @id @default(cuid())
+  employee     Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId   String
+  academicYear String // e.g. "2024/2025"
+  semester     String // "GANJIL" or "GENAP"
+  sksLoad      Float // beban SKS ekuivalen
+  status       BkdStatus @default(PENDING)
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@unique([employeeId, academicYear, semester])
 }
 
 enum PerformanceRating {
-  EXCELLENT   // Sangat Baik
-  GOOD        // Baik
-  SUFFICIENT  // Cukup
-  POOR        // Kurang
-  VERY_POOR   // Sangat Kurang
+  EXCELLENT // Sangat Baik
+  GOOD // Baik
+  SUFFICIENT // Cukup
+  POOR // Kurang
+  VERY_POOR // Sangat Kurang
 }
 
 model PerformanceScore {
-  id          String            @id @default(cuid())
-  employee    Employee          @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  employeeId  String
-  year        Int
-  score       Float             // 0 - 100
-  rating      PerformanceRating
-  notes       String?
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  id         String            @id @default(cuid())
+  employee   Employee          @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId String
+  year       Int
+  score      Float // 0 - 100
+  rating     PerformanceRating
+  notes      String?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
 
   @@unique([employeeId, year])
 }
@@ -262,30 +262,30 @@ model PerformanceScore {
 // -----------------------------------------------------------------------------
 
 enum IncrementRequestStatus {
-  DRAFT                 // employee started but not submitted
-  SUBMITTED             // employee uploaded docs and submitted
-  HR_REJECTED           // HR declined (e.g. missing docs)
-  HR_VERIFIED           // HR verified; Surat Pengantar generated
-  RECTOR_SIGNED         // Rektor signed Surat Pengantar; forwarded to Yayasan
-  FOUNDATION_REJECTED   // Yayasan declined
-  FOUNDATION_APPROVED   // Yayasan approved (ready to issue SK)
-  ISSUED                // Final SK Berkala issued
-  CANCELLED             // withdrawn by employee
+  DRAFT // employee started but not submitted
+  SUBMITTED // employee uploaded docs and submitted
+  HR_REJECTED // HR declined (e.g. missing docs)
+  HR_VERIFIED // HR verified; Surat Pengantar generated
+  RECTOR_SIGNED // Rektor signed Surat Pengantar; forwarded to Yayasan
+  FOUNDATION_REJECTED // Yayasan declined
+  FOUNDATION_APPROVED // Yayasan approved (ready to issue SK)
+  ISSUED // Final SK Berkala issued
+  CANCELLED // withdrawn by employee
 }
 
 enum DocumentKind {
-  SKP                   // Sasaran Kinerja Pegawai, ditandatangani atasan langsung
-  LAST_SK_BERKALA       // SK Berkala terakhir
-  TRIDHARMA_PROOF       // Bukti Tridharma aktif (Dosen only)
-  SURAT_PENGANTAR       // cover letter from Rektor to Yayasan
-  SK_BERKALA            // final SK issued by Yayasan
+  SKP // Sasaran Kinerja Pegawai, ditandatangani atasan langsung
+  LAST_SK_BERKALA // SK Berkala terakhir
+  TRIDHARMA_PROOF // Bukti Tridharma aktif (Dosen only)
+  SURAT_PENGANTAR // cover letter from Rektor to Yayasan
+  SK_BERKALA // final SK issued by Yayasan
 }
 
 model IncrementRequest {
-  id                     String                  @id @default(cuid())
-  employee               Employee                @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  employeeId             String
-  status                 IncrementRequestStatus  @default(DRAFT)
+  id         String                 @id @default(cuid())
+  employee   Employee               @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId String
+  status     IncrementRequestStatus @default(DRAFT)
 
   // Snapshots at submission time
   currentSalary          Int
@@ -294,64 +294,64 @@ model IncrementRequest {
   projectedEffectiveDate DateTime
   employeeNotes          String?
 
-  submittedAt            DateTime?
+  submittedAt DateTime?
 
   // If non-null, the request was filed by someone other than the employee
   // (typically HR on behalf of an elderly / non-tech-savvy pegawai). The
   // employee remains the subject of the request; this field just records
   // who actually typed it in. Null = employee self-submitted.
-  filedBy                User?                   @relation("FiledBy", fields: [filedById], references: [id], onDelete: SetNull)
-  filedById              String?
+  filedBy   User?   @relation("FiledBy", fields: [filedById], references: [id], onDelete: SetNull)
+  filedById String?
 
   // HR
-  hrReviewedAt           DateTime?
-  hrReviewedBy           User?                   @relation("HrVerifiedBy", fields: [hrReviewedById], references: [id], onDelete: SetNull)
-  hrReviewedById         String?
-  hrNotes                String?
-  coverLetterNumber      String?                 @unique // Nomor Surat Pengantar Rektor
-  coverLetterDate        DateTime?
+  hrReviewedAt      DateTime?
+  hrReviewedBy      User?     @relation("HrVerifiedBy", fields: [hrReviewedById], references: [id], onDelete: SetNull)
+  hrReviewedById    String?
+  hrNotes           String?
+  coverLetterNumber String?   @unique // Nomor Surat Pengantar Rektor
+  coverLetterDate   DateTime?
 
   // Rector
-  rectorSignedAt         DateTime?
-  rectorSignedBy         User?                   @relation("RectorSignedBy", fields: [rectorSignedById], references: [id], onDelete: SetNull)
-  rectorSignedById       String?
-  rectorNotes            String?
+  rectorSignedAt   DateTime?
+  rectorSignedBy   User?     @relation("RectorSignedBy", fields: [rectorSignedById], references: [id], onDelete: SetNull)
+  rectorSignedById String?
+  rectorNotes      String?
 
   // Foundation (Yayasan)
   foundationReviewedAt   DateTime?
-  foundationReviewedBy   User?                   @relation("FoundationReviewedBy", fields: [foundationReviewedById], references: [id], onDelete: SetNull)
+  foundationReviewedBy   User?     @relation("FoundationReviewedBy", fields: [foundationReviewedById], references: [id], onDelete: SetNull)
   foundationReviewedById String?
   foundationNotes        String?
 
   // Final SK
-  decreeNumber           String?                 @unique
-  decreeDate             DateTime?
-  issuedAt               DateTime?
-  signedByName           String?
-  signedByPosition       String?
+  decreeNumber     String?   @unique
+  decreeDate       DateTime?
+  issuedAt         DateTime?
+  signedByName     String?
+  signedByPosition String?
 
-  documents              RequestDocument[]
-  incrementHistoryId     String?                 @unique
-  incrementHistory       IncrementHistory?       @relation("FromRequest", fields: [incrementHistoryId], references: [id])
+  documents          RequestDocument[]
+  incrementHistoryId String?           @unique
+  incrementHistory   IncrementHistory? @relation("FromRequest", fields: [incrementHistoryId], references: [id])
 
-  createdAt              DateTime                @default(now())
-  updatedAt              DateTime                @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([employeeId, status])
 }
 
 model RequestDocument {
-  id            String             @id @default(cuid())
-  request       IncrementRequest   @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  requestId     String
-  kind          DocumentKind
-  originalName  String
-  storedPath    String             // relative to ./uploads/
-  mimeType      String
-  sizeBytes     Int
-  uploadedAt    DateTime           @default(now())
-  uploadedBy    User?              @relation("UploadedBy", fields: [uploadedById], references: [id], onDelete: SetNull)
-  uploadedById  String?
+  id           String           @id @default(cuid())
+  request      IncrementRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  requestId    String
+  kind         DocumentKind
+  originalName String
+  storedPath   String // relative to ./uploads/
+  mimeType     String
+  sizeBytes    Int
+  uploadedAt   DateTime         @default(now())
+  uploadedBy   User?            @relation("UploadedBy", fields: [uploadedById], references: [id], onDelete: SetNull)
+  uploadedById String?
 
   @@index([requestId, kind])
 }
@@ -368,24 +368,24 @@ enum IncrementStatus {
 }
 
 model IncrementHistory {
-  id               String           @id @default(cuid())
-  employee         Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  id               String            @id @default(cuid())
+  employee         Employee          @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   employeeId       String
   previousSalary   Int
   newSalary        Int
   incrementAmount  Int
-  effectiveDate    DateTime         // TMT berlaku
-  decreeNumber     String?          @unique // nomor SK
-  decreeDate       DateTime?        // tanggal SK
-  signedByName     String?          // nama penandatangan
-  signedByPosition String?          // jabatan penandatangan
-  reason           String?          // catatan / dasar
-  status           IncrementStatus  @default(PENDING)
-  generatedBy      User?            @relation("GeneratedBy", fields: [generatedById], references: [id], onDelete: SetNull)
+  effectiveDate    DateTime // TMT berlaku
+  decreeNumber     String?           @unique // nomor SK
+  decreeDate       DateTime? // tanggal SK
+  signedByName     String? // nama penandatangan
+  signedByPosition String? // jabatan penandatangan
+  reason           String? // catatan / dasar
+  status           IncrementStatus   @default(PENDING)
+  generatedBy      User?             @relation("GeneratedBy", fields: [generatedById], references: [id], onDelete: SetNull)
   generatedById    String?
   request          IncrementRequest? @relation("FromRequest")
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 }
 
 // -----------------------------------------------------------------------------
@@ -396,33 +396,33 @@ model IncrementHistory {
 // -----------------------------------------------------------------------------
 
 enum CertificationCategory {
-  SERDOS      // Sertifikasi Dosen (Kemdikbud / LLDikti)
-  PROFESI     // Sertifikasi Profesi (PII, HRCI, dll)
-  PELATIHAN   // Pelatihan / workshop / seminar
-  KEAHLIAN    // Sertifikasi keahlian / kompetensi
-  BAHASA      // TOEFL, IELTS, TOAFL, JLPT
+  SERDOS // Sertifikasi Dosen (Kemdikbud / LLDikti)
+  PROFESI // Sertifikasi Profesi (PII, HRCI, dll)
+  PELATIHAN // Pelatihan / workshop / seminar
+  KEAHLIAN // Sertifikasi keahlian / kompetensi
+  BAHASA // TOEFL, IELTS, TOAFL, JLPT
   LAINNYA
 }
 
 model Certification {
-  id               String                @id @default(cuid())
-  employee         Employee              @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  employeeId       String
-  name             String                // "Sertifikasi Dosen Profesional"
-  issuer           String                // "Kementerian Pendidikan"
-  category         CertificationCategory
-  certificateNumber String?              // nomor sertifikat
-  issueDate        DateTime
-  expiryDate       DateTime?             // null = tidak kadaluwarsa
-  filePath         String?               // stored path relative to ./uploads/
-  fileName         String?
-  fileMimeType     String?
-  fileSizeBytes    Int?
-  verified         Boolean               @default(false)
-  verifiedAt       DateTime?
-  notes            String?
-  createdAt        DateTime              @default(now())
-  updatedAt        DateTime              @updatedAt
+  id                String                @id @default(cuid())
+  employee          Employee              @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId        String
+  name              String // "Sertifikasi Dosen Profesional"
+  issuer            String // "Kementerian Pendidikan"
+  category          CertificationCategory
+  certificateNumber String? // nomor sertifikat
+  issueDate         DateTime
+  expiryDate        DateTime? // null = tidak kadaluwarsa
+  filePath          String? // stored path relative to ./uploads/
+  fileName          String?
+  fileMimeType      String?
+  fileSizeBytes     Int?
+  verified          Boolean               @default(false)
+  verifiedAt        DateTime?
+  notes             String?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
 
   @@index([employeeId])
   @@index([expiryDate])
@@ -430,14 +430,14 @@ model Certification {
 
 enum PublicationKind {
   JURNAL_NASIONAL
-  JURNAL_NASIONAL_TERAKREDITASI    // SINTA terakreditasi (S1-S6)
+  JURNAL_NASIONAL_TERAKREDITASI // SINTA terakreditasi (S1-S6)
   JURNAL_INTERNASIONAL
-  JURNAL_INTERNASIONAL_BEREPUTASI  // Scopus / WoS
+  JURNAL_INTERNASIONAL_BEREPUTASI // Scopus / WoS
   PROSIDING_NASIONAL
   PROSIDING_INTERNASIONAL
   BUKU
   BAB_BUKU
-  HKI                              // Hak Kekayaan Intelektual / paten
+  HKI // Hak Kekayaan Intelektual / paten
   LAINNYA
 }
 
@@ -448,23 +448,23 @@ enum AuthorRole {
 }
 
 model Publication {
-  id              String          @id @default(cuid())
-  dosenDetail     DosenDetail     @relation(fields: [dosenDetailId], references: [id], onDelete: Cascade)
-  dosenDetailId   String
-  title           String
-  kind            PublicationKind
-  year            Int
-  venue           String          // nama jurnal / prosiding / penerbit
-  doi             String?
-  url             String?
-  authorRole      AuthorRole
-  coauthors       String?         // penulis lain dipisah koma
-  sintaRank       String?         // "S1".."S6" untuk JURNAL_NASIONAL_TERAKREDITASI
-  scopusQuartile  String?         // "Q1".."Q4" untuk JURNAL_INTERNASIONAL_BEREPUTASI
-  verified        Boolean         @default(false)
-  verifiedAt      DateTime?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  id             String          @id @default(cuid())
+  dosenDetail    DosenDetail     @relation(fields: [dosenDetailId], references: [id], onDelete: Cascade)
+  dosenDetailId  String
+  title          String
+  kind           PublicationKind
+  year           Int
+  venue          String // nama jurnal / prosiding / penerbit
+  doi            String?
+  url            String?
+  authorRole     AuthorRole
+  coauthors      String? // penulis lain dipisah koma
+  sintaRank      String? // "S1".."S6" untuk JURNAL_NASIONAL_TERAKREDITASI
+  scopusQuartile String? // "Q1".."Q4" untuk JURNAL_INTERNASIONAL_BEREPUTASI
+  verified       Boolean         @default(false)
+  verifiedAt     DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
   @@index([dosenDetailId, year])
   @@index([kind, year])
@@ -479,17 +479,42 @@ model Publication {
 // changes, ADMIN updates one row and every subsequent letter picks it up
 // without a deploy.
 enum OfficialRole {
-  RECTOR            // Rektor Universitas Gajayana Malang
-  FOUNDATION_CHAIR  // Ketua Yayasan Pembina Pendidikan Gajayana
+  RECTOR // Rektor Universitas Gajayana Malang
+  FOUNDATION_CHAIR // Ketua Yayasan Pembina Pendidikan Gajayana
 }
 
 model OrgOfficial {
   id          String       @id @default(cuid())
   role        OfficialRole @unique
-  name        String       // e.g. "Prof. Dr. Ernani Hadiyati, S.E., M.M."
-  nip         String?      // NIP / NIS (optional — Rektor sometimes has none)
-  title       String       // display line under the name, e.g. "Rektor"
+  name        String // e.g. "Prof. Dr. Ernani Hadiyati, S.E., M.M."
+  nip         String? // NIP / NIS (optional — Rektor sometimes has none)
+  title       String // display line under the name, e.g. "Rektor"
   updatedAt   DateTime     @updatedAt
   updatedBy   User?        @relation("OfficialUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
   updatedById String?
+}
+
+// -----------------------------------------------------------------------------
+// Global application settings — single-row singleton (id="singleton").
+// Holds institutional branding (kop surat image URL) and tunable KGB rule
+// variables that used to live as hardcoded constants in src/lib/eligibility.ts.
+// -----------------------------------------------------------------------------
+
+model AppSetting {
+  id                       String   @id @default("singleton")
+  // Absolute URL (Vercel Blob) for the letterhead image (JPG/PNG/WEBP)
+  // printed at the top of every Surat Pengantar / SK Penetapan Berkala PDF.
+  // NULL ⇒ fall back to the text-only header layout.
+  letterheadUrl            String?
+  // Percentage applied to currentBaseSalary every KGB cycle (default 0.03 = 3%).
+  // Stored as Float (not Decimal) to keep runtime math simple; the 2-year
+  // cycle is hardcoded because it is legally mandated and cannot be tuned.
+  incrementPercent         Float    @default(0.03)
+  // Minimum annual performance score a STAFF (Tenaga Kependidikan) must
+  // reach (0-100) to be eligible. Dosen use BKD instead.
+  staffMinPerformanceScore Int      @default(76)
+  // Number of most-recent BKD evaluations a DOSEN must pass (all PASS) to
+  // be eligible. University rule: 2 semesters.
+  dosenRequiredBkdPasses   Int      @default(2)
+  updatedAt                DateTime @updatedAt
 }

@@ -8,6 +8,7 @@ import {
   computeIncrementAmount,
   computeNextIncrementDate,
 } from "@/lib/eligibility";
+import { getKgbRules } from "@/lib/app-settings";
 
 export interface ActionState {
   error?: string;
@@ -150,7 +151,11 @@ export async function issueIncrementAction(
         }
 
         const previousSalary = employee.currentBaseSalary;
-        const defaultIncrement = computeIncrementAmount(previousSalary);
+        const rules = await getKgbRules();
+        const defaultIncrement = computeIncrementAmount(
+          previousSalary,
+          rules.incrementPercent,
+        );
         const newSalary = manualNewSalary ?? previousSalary + defaultIncrement;
         const finalIncrement = newSalary - previousSalary;
 

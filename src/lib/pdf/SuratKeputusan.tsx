@@ -9,7 +9,7 @@
  * wiring each placeholder to the corresponding IncrementHistory/Employee
  * field.
  */
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer";
 import type {
   IncrementHistory,
   Employee,
@@ -92,14 +92,27 @@ const styles = StyleSheet.create({
   signPos: { marginTop: 2, fontSize: 10, color: "#444" },
   tembusan: { marginTop: 20, fontSize: 10 },
   tembusanItem: { marginLeft: 20 },
+  letterhead: {
+    width: "100%",
+    marginBottom: 12,
+    borderBottom: "1 solid #0a3b7a",
+    paddingBottom: 6,
+  },
 });
 
 export function SuratKeputusanDocument({
   record,
   foundationChair,
+  letterheadUrl,
 }: {
   record: IncrementWithRelations;
   foundationChair?: OfficialSnapshot;
+  /**
+   * Absolute URL to the institutional letterhead image (Vercel Blob).
+   * When present, replaces the text-only header block. Falls back to
+   * the text header when null/undefined.
+   */
+  letterheadUrl?: string | null;
 }) {
   const emp = record.employee;
   const golLabel =
@@ -129,16 +142,22 @@ export function SuratKeputusanDocument({
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        <View style={styles.header}>
-          <Text style={styles.hdrOrg}>YAYASAN PEMBINA PENDIDIKAN GAJAYANA</Text>
-          <Text style={styles.hdrSub}>UNIVERSITAS GAJAYANA MALANG</Text>
-          <Text style={styles.hdrAddress}>
-            Jalan Mertojoyo Blok L, Merjosari, Kecamatan Lowokwaru, Kota Malang, Jawa Timur
-          </Text>
-          <Text style={styles.hdrAddress}>
-            Telp. (0341) 000-0000 · Laman: www.unigamalang.ac.id · Surel: info@unigamalang.ac.id
-          </Text>
-        </View>
+        {letterheadUrl ? (
+          // @react-pdf/renderer's Image is not an HTML <img> and has no alt prop.
+          // eslint-disable-next-line jsx-a11y/alt-text
+          <Image src={letterheadUrl} style={styles.letterhead} />
+        ) : (
+          <View style={styles.header}>
+            <Text style={styles.hdrOrg}>YAYASAN PEMBINA PENDIDIKAN GAJAYANA</Text>
+            <Text style={styles.hdrSub}>UNIVERSITAS GAJAYANA MALANG</Text>
+            <Text style={styles.hdrAddress}>
+              Jalan Mertojoyo Blok L, Merjosari, Kecamatan Lowokwaru, Kota Malang, Jawa Timur
+            </Text>
+            <Text style={styles.hdrAddress}>
+              Telp. (0341) 000-0000 · Laman: www.unigamalang.ac.id · Surel: info@unigamalang.ac.id
+            </Text>
+          </View>
+        )}
 
         <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 12 }}>
           <View style={{ width: "60%" }}>

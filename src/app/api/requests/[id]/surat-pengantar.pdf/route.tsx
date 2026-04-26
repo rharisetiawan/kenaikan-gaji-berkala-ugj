@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { SuratPengantarDocument } from "@/lib/pdf/SuratPengantar";
 import { getOfficial } from "@/lib/officials";
+import { getLetterheadUrl } from "@/lib/app-settings";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -41,9 +42,16 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
     );
   }
 
-  const rector = await getOfficial("RECTOR");
+  const [rector, letterheadUrl] = await Promise.all([
+    getOfficial("RECTOR"),
+    getLetterheadUrl(),
+  ]);
   const buffer = await renderToBuffer(
-    <SuratPengantarDocument record={req} rector={rector} />,
+    <SuratPengantarDocument
+      record={req}
+      rector={rector}
+      letterheadUrl={letterheadUrl}
+    />,
   );
   const arrayBuffer = buffer.buffer.slice(
     buffer.byteOffset,

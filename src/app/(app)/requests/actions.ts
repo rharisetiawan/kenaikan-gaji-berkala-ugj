@@ -7,9 +7,9 @@ import { requireUser, requireRole } from "@/lib/auth";
 import {
   computeIncrementAmount,
   computeNextIncrementDate,
-  DOSEN_REQUIRED_BKD_PASSES,
   dosenHasRecentBkdPasses,
 } from "@/lib/eligibility";
+import { getKgbRules } from "@/lib/app-settings";
 import { saveUpload } from "@/lib/uploads";
 import { requiredDocumentsFor, workflowEnabledFor } from "@/lib/requests";
 import type { DocumentKind, IncrementRequestStatus } from "@prisma/client";
@@ -60,18 +60,27 @@ export async function submitIncrementRequestAction(formData: FormData): Promise<
     );
   }
 
-  // Dosen gate: block submission if BKD isn't passed for the latest 2 semesters.
+  const rules = await getKgbRules();
+
+  // Dosen gate: block submission if BKD isn't passed for the configured
+  // number of most-recent semesters (AppSetting.dosenRequiredBkdPasses).
   // HR would otherwise reject; pre-flighting avoids wasted uploads.
-  if (employee.type === "DOSEN" && !dosenHasRecentBkdPasses(employee.bkdEvaluations)) {
+  if (
+    employee.type === "DOSEN" &&
+    !dosenHasRecentBkdPasses(employee.bkdEvaluations, rules.dosenRequiredBkdPasses)
+  ) {
     throw new Error(
-      `Pengajuan diblokir: BKD ${DOSEN_REQUIRED_BKD_PASSES} semester terakhir belum lulus. Selesaikan BKD sebelum mengajukan KGB.`,
+      `Pengajuan diblokir: BKD ${rules.dosenRequiredBkdPasses} semester terakhir belum lulus. Selesaikan BKD sebelum mengajukan KGB.`,
     );
   }
 
   const notes = (formData.get("notes") as string | null)?.toString() ?? null;
 
   const projectedEffectiveDate = computeNextIncrementDate(employee);
-  const incrementAmount = computeIncrementAmount(employee.currentBaseSalary);
+  const incrementAmount = computeIncrementAmount(
+    employee.currentBaseSalary,
+    rules.incrementPercent,
+  );
   const projectedNewSalary = employee.currentBaseSalary + incrementAmount;
 
   const required = requiredDocumentsFor(employee.type);
@@ -173,15 +182,22 @@ export async function submitRequestOnBehalfAction(formData: FormData): Promise<v
       "Kenaikan Gaji Berkala hanya berlaku untuk pegawai tetap.",
     );
   }
-  if (employee.type === "DOSEN" && !dosenHasRecentBkdPasses(employee.bkdEvaluations)) {
+  const rules = await getKgbRules();
+  if (
+    employee.type === "DOSEN" &&
+    !dosenHasRecentBkdPasses(employee.bkdEvaluations, rules.dosenRequiredBkdPasses)
+  ) {
     throw new Error(
-      `Pengajuan diblokir: BKD ${DOSEN_REQUIRED_BKD_PASSES} semester terakhir belum lulus.`,
+      `Pengajuan diblokir: BKD ${rules.dosenRequiredBkdPasses} semester terakhir belum lulus.`,
     );
   }
 
   const notes = (formData.get("notes") as string | null)?.toString() ?? null;
   const projectedEffectiveDate = computeNextIncrementDate(employee);
-  const incrementAmount = computeIncrementAmount(employee.currentBaseSalary);
+  const incrementAmount = computeIncrementAmount(
+    employee.currentBaseSalary,
+    rules.incrementPercent,
+  );
   const projectedNewSalary = employee.currentBaseSalary + incrementAmount;
 
   const required = requiredDocumentsFor(employee.type);
@@ -464,7 +480,13 @@ export async function foundationIssueSkAction(formData: FormData): Promise<void>
         throw new Error("Pegawai tidak ditemukan saat menerbitkan SK.");
       }
       const previousSalary = freshEmp.currentBaseSalary;
-      const incrementAmount = computeIncrementAmount(previousSalary);
+      // Re-read rules inside the transaction so a concurrent admin change
+      // to incrementPercent mid-issue is always applied consistently.
+      const rules = await getKgbRules();
+      const incrementAmount = computeIncrementAmount(
+        previousSalary,
+        rules.incrementPercent,
+      );
       const newSalary = previousSalary + incrementAmount;
 
       const history = await tx.incrementHistory.create({
