@@ -36,7 +36,12 @@ export default async function AdminPengaturanPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <LetterheadForm currentUrl={settings.letterheadUrl} />
+        <LetterheadForm
+          hasLetterhead={Boolean(
+            settings.letterheadUrl || settings.letterheadDriveFileId,
+          )}
+          cacheKey={settings.letterheadDriveFileId ?? settings.letterheadUrl ?? undefined}
+        />
         <KgbRulesForm
           defaultIncrementPercent={settings.incrementPercent}
           defaultStaffMinPerformanceScore={settings.staffMinPerformanceScore}
