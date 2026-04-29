@@ -10,6 +10,7 @@
  */
 
 import { cache } from "react";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 
 // Defaults mirror the legal university rule set. They MUST match the
@@ -46,6 +47,12 @@ export interface ResolvedAppSettings {
  * or any column is null. Never throws — if the DB is unreachable during
  * a non-critical render path (PDF footer, etc.) we'd rather fall back to
  * defaults than 500 the whole page.
+ *
+ * **DO NOT** use this helper from server actions that compute financial
+ * amounts (e.g. SK issuance, salary increments). The silent fallback to
+ * hardcoded defaults could cause an SK to be issued with the wrong
+ * increment percent if the DB blips during the txn. Use
+ * `readKgbRulesInTx()` from inside the same `$transaction` instead.
  */
 export const getAppSettings = cache(async (): Promise<ResolvedAppSettings> => {
   try {
@@ -119,6 +126,36 @@ export async function getLetterheadForPdf(): Promise<string | null> {
     }
   }
   return s.letterheadUrl;
+}
+
+/**
+ * Read the KGB rules from inside an active Serializable `$transaction`.
+ * Used by financial write paths (SK issuance, increment apply) so the
+ * rules read shares the same isolation snapshot as the salary read —
+ * if an admin updates `incrementPercent` mid-txn, the txn either sees
+ * the old value (consistent with the rest of its reads) or restarts.
+ *
+ * Unlike `getKgbRules()`, this function:
+ *   1. Uses the caller-supplied `tx` client (not the global `prisma`)
+ *      so the read happens on the same DB connection / snapshot.
+ *   2. Does NOT swallow DB errors. If the read fails, the surrounding
+ *      transaction must abort — silently computing salary from
+ *      hardcoded defaults during a DB blip is a correctness bug.
+ *
+ * The row is guaranteed to exist after seed/admin setup; the default
+ * fallback below covers only the very first migration where no admin
+ * has visited /admin/pengaturan yet.
+ */
+export async function readKgbRulesInTx(
+  tx: Prisma.TransactionClient,
+): Promise<KgbRules> {
+  const row = await tx.appSetting.findUnique({ where: { id: "singleton" } });
+  if (!row) return { ...DEFAULT_KGB_RULES };
+  return {
+    incrementPercent: row.incrementPercent,
+    staffMinPerformanceScore: row.staffMinPerformanceScore,
+    dosenRequiredBkdPasses: row.dosenRequiredBkdPasses,
+  };
 }
 
 /**

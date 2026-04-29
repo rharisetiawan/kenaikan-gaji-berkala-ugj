@@ -9,7 +9,7 @@ import {
   computeNextIncrementDate,
   dosenHasRecentBkdPasses,
 } from "@/lib/eligibility";
-import { getKgbRules } from "@/lib/app-settings";
+import { getKgbRules, readKgbRulesInTx } from "@/lib/app-settings";
 import { saveUpload, rollbackUpload, type SavedUpload } from "@/lib/uploads";
 import { requiredDocumentsFor, workflowEnabledFor } from "@/lib/requests";
 import type { DocumentKind, IncrementRequestStatus } from "@prisma/client";
@@ -490,9 +490,12 @@ export async function foundationIssueSkAction(formData: FormData): Promise<void>
         throw new Error("Pegawai tidak ditemukan saat menerbitkan SK.");
       }
       const previousSalary = freshEmp.currentBaseSalary;
-      // Re-read rules inside the transaction so a concurrent admin change
-      // to incrementPercent mid-issue is always applied consistently.
-      const rules = await getKgbRules();
+      // Re-read rules through the tx client so the rules snapshot lives
+      // inside the same Serializable isolation as the salary read above.
+      // A concurrent admin update to incrementPercent will either be
+      // reflected here (and the salary read above will see the same
+      // post-update state) or the txn will abort — never split-read.
+      const rules = await readKgbRulesInTx(tx);
       const incrementAmount = computeIncrementAmount(
         previousSalary,
         rules.incrementPercent,

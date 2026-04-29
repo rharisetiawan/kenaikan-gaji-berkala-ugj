@@ -8,7 +8,7 @@ import {
   computeIncrementAmount,
   computeNextIncrementDate,
 } from "@/lib/eligibility";
-import { getKgbRules } from "@/lib/app-settings";
+import { readKgbRulesInTx } from "@/lib/app-settings";
 
 export interface ActionState {
   error?: string;
@@ -151,7 +151,9 @@ export async function issueIncrementAction(
         }
 
         const previousSalary = employee.currentBaseSalary;
-        const rules = await getKgbRules();
+        // Read rules via the tx client to keep the rules snapshot inside
+        // the same Serializable isolation as the salary read above.
+        const rules = await readKgbRulesInTx(tx);
         const defaultIncrement = computeIncrementAmount(
           previousSalary,
           rules.incrementPercent,
