@@ -54,8 +54,15 @@ interface BackupPayload {
 async function dumpAllTables(): Promise<BackupPayload> {
   // Order doesn't matter for the JSON dump — restore script handles FK
   // ordering. We collect every Prisma model that holds business data.
+  //
+  // SECURITY: User rows are stripped of `passwordHash` before serialization.
+  // The backup file lives in a Shared Drive that's accessible to every
+  // member, so we never let bcrypt hashes leave the primary database. On
+  // restore, scripts/restore-backup.ts injects a placeholder hash that
+  // forces a password reset for any user that didn't already exist in the
+  // target DB.
   const [
-    users,
+    rawUsers,
     academicRanks,
     payGrades,
     employees,
@@ -87,6 +94,12 @@ async function dumpAllTables(): Promise<BackupPayload> {
     prisma.orgOfficial.findMany(),
     prisma.appSetting.findMany(),
   ]);
+
+  const users = rawUsers.map((u) => {
+    const copy: Record<string, unknown> = { ...u };
+    delete copy.passwordHash;
+    return copy;
+  });
 
   const wrap = (data: unknown[]): BackupTable => ({ rows: data.length, data });
   return {

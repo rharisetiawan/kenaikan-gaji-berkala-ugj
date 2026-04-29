@@ -15,8 +15,21 @@
  */
 import { gunzipSync } from "node:zlib";
 import { readFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { hashSync } from "bcryptjs";
 import { PrismaClient, Prisma } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+
+// Backups never include `passwordHash` (see security note in
+// src/app/api/cron/backup-db/route.ts). On restore we inject a fresh
+// per-user random sentinel hashed with bcrypt, so:
+//   1. The User row satisfies the NOT NULL constraint and the table
+//      restores cleanly.
+//   2. Nobody (including this script's runner) ever knows the password
+//      — every restored user MUST go through admin password reset.
+function makeSentinelHash(): string {
+  return hashSync(randomBytes(48).toString("hex"), 10);
+}
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error("DATABASE_URL is not set");
@@ -102,11 +115,24 @@ async function main(): Promise<void> {
     // Date-typed fields are emitted as ISO strings by JSON.stringify;
     // Prisma's runtime accepts ISO strings on Date columns, so no extra
     // post-processing is needed.
+    let dataToInsert = t.data;
+    if (tableName === "User") {
+      // Inject sentinel passwordHash for any backed-up user row missing
+      // it (i.e. all of them, since the cron strips the column).
+      dataToInsert = (t.data as Array<Record<string, unknown>>).map((row) =>
+        "passwordHash" in row && row.passwordHash
+          ? row
+          : { ...row, passwordHash: makeSentinelHash() },
+      );
+      console.log(
+        `  ⚠  ${tableName}: ${t.rows} rows will receive sentinel passwordHash. Admins MUST run /admin/users password reset before users can sign in.`,
+      );
+    }
     const delegate = (
       prisma as unknown as Record<string, { createMany: (args: unknown) => Promise<Prisma.BatchPayload> }>
     )[delegateName];
     const result = await delegate.createMany({
-      data: t.data,
+      data: dataToInsert,
       skipDuplicates: true,
     });
     console.log(
