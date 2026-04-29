@@ -96,6 +96,8 @@ function jenisFolderFor(kind: string): string {
       return "sertifikat";
     case "letterhead":
       return "kop-surat";
+    case "photo":
+      return "foto-pegawai";
     case "skp":
     case "last_sk_berkala":
     case "tridharma_proof":

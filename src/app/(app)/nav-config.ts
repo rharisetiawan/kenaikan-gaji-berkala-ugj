@@ -23,6 +23,7 @@ export type IconName =
   | "UserPlus"
   | "UserCog"
   | "Crown"
+  | "DatabaseZap"
   | "Settings";
 
 export interface NavItem {
@@ -179,6 +180,12 @@ export const NAV_GROUPS: NavGroup[] = [
         href: "/admin/pejabat",
         label: "Pejabat",
         icon: "Crown",
+        roles: ["ADMIN"],
+      },
+      {
+        href: "/admin/master-data",
+        label: "Tabel Gaji & Pangkat",
+        icon: "DatabaseZap",
         roles: ["ADMIN"],
       },
       {

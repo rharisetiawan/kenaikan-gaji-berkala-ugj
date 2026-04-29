@@ -40,7 +40,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 />
               </div>
               <div className="leading-tight">
-                <div className="text-sm font-semibold">SIM KGB</div>
+                <div className="text-sm font-semibold">HRIS UNIGA</div>
                 <div className="text-xs text-blue-100">
                   Universitas Gajayana Malang
                 </div>
@@ -64,7 +64,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <div className="mx-auto max-w-7xl px-4 py-6">{children}</div>
         </main>
         <footer className="border-t border-slate-200 bg-white py-4 text-center text-xs text-slate-500">
-          © {new Date().getFullYear()} Universitas Gajayana Malang · Powered by www.weverx.com
+          © {new Date().getFullYear()} Universitas Gajayana Malang · Developed by{" "}
+          <a
+            href="https://weverx.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline-offset-2 hover:underline"
+          >
+            weverx.com
+          </a>
         </footer>
       </div>
     </div>

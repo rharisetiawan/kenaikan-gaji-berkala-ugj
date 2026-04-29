@@ -37,6 +37,12 @@ export default async function AdminOverviewPage() {
       stat: `${officialCount} pejabat terisi`,
     },
     {
+      href: "/admin/master-data",
+      title: "Tabel Gaji & Pangkat",
+      desc: "Edit gaji pokok per golongan dan tunjangan fungsional per jabatan akademik.",
+      stat: "Master data referensi",
+    },
+    {
       href: "/admin/pengaturan",
       title: "Pengaturan",
       desc: "Kop surat PDF dan aturan KGB (persen kenaikan, ambang kinerja, BKD).",

@@ -3,11 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
+import { rollbackUpload, saveUpload } from "@/lib/uploads";
 import type {
   LastEducation,
   MaritalStatus,
   Religion,
 } from "@prisma/client";
+
+const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
+const PHOTO_MIME_ALLOWLIST = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 // Acceptable enum values (kept as plain arrays so we can validate raw form
 // strings without importing runtime enums from @prisma/client).
@@ -162,4 +166,64 @@ export async function updateMyProfileAction(formData: FormData): Promise<void> {
 
   revalidatePath("/profile");
   revalidatePath("/dashboard");
+}
+
+export interface PhotoUploadState {
+  success?: string;
+  error?: string;
+}
+
+/**
+ * Upload (or replace) the current user's profile photo. Goes through the
+ * same `saveUpload` pipeline as documents (Drive in production, Blob/local
+ * fallback) but with a stricter 5 MB cap and an image-only MIME allowlist
+ * because the photo is shown inline in lots of places.
+ */
+export async function uploadMyPhotoAction(
+  _prev: PhotoUploadState,
+  formData: FormData,
+): Promise<PhotoUploadState> {
+  const session = await requireUser();
+  const user = await prisma.user.findUnique({
+    where: { id: session.userId },
+    select: { employeeId: true },
+  });
+  if (!user?.employeeId) {
+    return { error: "Akun Anda belum tertaut dengan data pegawai." };
+  }
+  const file = formData.get("photo");
+  if (!(file instanceof File) || file.size === 0) {
+    return { error: "Pilih berkas foto terlebih dahulu." };
+  }
+  if (file.size > PHOTO_MAX_BYTES) {
+    return { error: "Ukuran foto melebihi 5 MB." };
+  }
+  if (!PHOTO_MIME_ALLOWLIST.has(file.type)) {
+    return { error: "Format foto harus JPG, PNG, atau WEBP." };
+  }
+  let saved;
+  try {
+    saved = await saveUpload(file, "employees", "photo", user.employeeId);
+  } catch (err) {
+    return { error: (err as Error).message };
+  }
+  try {
+    await prisma.employee.update({
+      where: { id: user.employeeId },
+      data: {
+        photoStoredPath: saved.storedPath,
+        photoDriveFileId: saved.driveFileId,
+        photoDriveWebViewLink: saved.driveWebViewLink,
+        photoMimeType: saved.mimeType,
+        photoSizeBytes: saved.sizeBytes,
+      },
+    });
+  } catch (err) {
+    await rollbackUpload(saved);
+    return { error: `Gagal menyimpan foto: ${(err as Error).message}` };
+  }
+  revalidatePath("/profile");
+  revalidatePath("/employees");
+  revalidatePath(`/employees/${user.employeeId}`);
+  return { success: "Foto profil berhasil diperbarui." };
 }
