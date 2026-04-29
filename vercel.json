@@ -1,4 +1,15 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "crons": [
+    {
+      "path": "/api/cron/backup-db",
+      "schedule": "0 19 * * *"
+    }
+  ],
+  "functions": {
+    "src/app/api/cron/backup-db/route.ts": {
+      "maxDuration": 300
+    }
+  }
 }

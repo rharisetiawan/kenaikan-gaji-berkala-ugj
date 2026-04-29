@@ -8,10 +8,24 @@ import {
 } from "./actions";
 
 interface Props {
-  currentUrl: string | null;
+  /**
+   * Whether a letterhead is configured in AppSetting. We don't pass the
+   * raw URL to the client because Drive webViewLinks are HTML viewer
+   * pages, not direct image bytes — the preview always streams through
+   * the auth-gated /api/letterhead proxy regardless of backend.
+   */
+  hasLetterhead: boolean;
+  /**
+   * Cache-busting token (e.g. updatedAt timestamp) so the browser
+   * re-fetches the proxy URL after admin re-uploads a new file.
+   */
+  cacheKey?: string | number;
 }
 
-export function LetterheadForm({ currentUrl }: Props) {
+export function LetterheadForm({ hasLetterhead, cacheKey }: Props) {
+  const previewUrl = hasLetterhead
+    ? `/api/letterhead${cacheKey ? `?v=${encodeURIComponent(String(cacheKey))}` : ""}`
+    : null;
   const [state, formAction, isPending] = useActionState<
     UpdateAppSettingsState,
     FormData
@@ -29,7 +43,7 @@ export function LetterheadForm({ currentUrl }: Props) {
         </div>
       </div>
 
-      {currentUrl ? (
+      {previewUrl ? (
         <div className="space-y-2">
           <div className="text-xs font-medium text-slate-700">
             Kop surat saat ini:
@@ -37,7 +51,7 @@ export function LetterheadForm({ currentUrl }: Props) {
           <div className="overflow-hidden rounded-md border border-slate-200 bg-slate-50 p-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={currentUrl}
+              src={previewUrl}
               alt="Kop surat saat ini"
               className="max-h-32 w-full object-contain"
             />

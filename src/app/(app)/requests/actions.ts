@@ -10,7 +10,7 @@ import {
   dosenHasRecentBkdPasses,
 } from "@/lib/eligibility";
 import { getKgbRules } from "@/lib/app-settings";
-import { saveUpload } from "@/lib/uploads";
+import { saveUpload, rollbackUpload, type SavedUpload } from "@/lib/uploads";
 import { requiredDocumentsFor, workflowEnabledFor } from "@/lib/requests";
 import type { DocumentKind, IncrementRequestStatus } from "@prisma/client";
 
@@ -125,18 +125,22 @@ export async function submitIncrementRequestAction(formData: FormData): Promise<
   );
 
   // File writes aren't transactional. If any upload or DB insert fails after
-  // the IncrementRequest row was created, roll back the row so the employee
-  // can resubmit (without hitting the duplicate-active-request guard).
+  // the IncrementRequest row was created, roll back both the DB row and any
+  // Drive files we already created so the employee can resubmit cleanly.
+  const uploadedSoFar: SavedUpload[] = [];
   try {
     for (const kind of required) {
       const file = formData.get(`doc_${kind}`) as File;
       const saved = await saveUpload(file, request.id, kind);
+      uploadedSoFar.push(saved);
       await prisma.requestDocument.create({
         data: {
           requestId: request.id,
           kind: kind as DocumentKind,
           originalName: saved.originalName,
           storedPath: saved.storedPath,
+          driveFileId: saved.driveFileId,
+          driveWebViewLink: saved.driveWebViewLink,
           mimeType: saved.mimeType,
           sizeBytes: saved.sizeBytes,
           uploadedById: session.userId,
@@ -144,6 +148,7 @@ export async function submitIncrementRequestAction(formData: FormData): Promise<
       });
     }
   } catch (err) {
+    await Promise.all(uploadedSoFar.map((s) => rollbackUpload(s)));
     await prisma.requestDocument.deleteMany({ where: { requestId: request.id } });
     await prisma.incrementRequest.delete({ where: { id: request.id } }).catch(() => {});
     throw err;
@@ -240,16 +245,20 @@ export async function submitRequestOnBehalfAction(formData: FormData): Promise<v
     { isolationLevel: "Serializable" },
   );
 
+  const uploadedSoFar: SavedUpload[] = [];
   try {
     for (const kind of required) {
       const file = formData.get(`doc_${kind}`) as File;
       const saved = await saveUpload(file, request.id, kind);
+      uploadedSoFar.push(saved);
       await prisma.requestDocument.create({
         data: {
           requestId: request.id,
           kind: kind as DocumentKind,
           originalName: saved.originalName,
           storedPath: saved.storedPath,
+          driveFileId: saved.driveFileId,
+          driveWebViewLink: saved.driveWebViewLink,
           mimeType: saved.mimeType,
           sizeBytes: saved.sizeBytes,
           uploadedById: session.userId,
@@ -257,6 +266,7 @@ export async function submitRequestOnBehalfAction(formData: FormData): Promise<v
       });
     }
   } catch (err) {
+    await Promise.all(uploadedSoFar.map((s) => rollbackUpload(s)));
     await prisma.requestDocument.deleteMany({ where: { requestId: request.id } });
     await prisma.incrementRequest.delete({ where: { id: request.id } }).catch(() => {});
     throw err;
