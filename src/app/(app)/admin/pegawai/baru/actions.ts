@@ -18,9 +18,19 @@ const EMPLOYMENT_STATUSES: readonly EmploymentStatus[] = [
 
 function generateTempPassword(): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-  const buf = randomBytes(10);
+  // Rejection sampling to avoid modulo bias from `byte % 55`.
+  let pool = randomBytes(64);
+  let cursor = 0;
+  const limit = 256 - (256 % alphabet.length);
   let out = "";
-  for (let i = 0; i < 10; i++) out += alphabet[buf[i] % alphabet.length];
+  while (out.length < 10) {
+    if (cursor >= pool.length) {
+      pool = randomBytes(64);
+      cursor = 0;
+    }
+    const b = pool[cursor++];
+    if (b < limit) out += alphabet[b % alphabet.length];
+  }
   return out;
 }
 
@@ -120,8 +130,13 @@ export async function createEmployeeAction(
     // just gives a friendlier error message).
     const dupeNip = await prisma.employee.findUnique({ where: { nip } });
     if (dupeNip) throw new Error("NIP sudah terdaftar di pegawai lain.");
-    const dupeEmail = await prisma.user.findUnique({ where: { email } });
-    if (dupeEmail) throw new Error("Email sudah dipakai pengguna lain.");
+    const dupeUserEmail = await prisma.user.findUnique({ where: { email } });
+    if (dupeUserEmail) throw new Error("Email sudah dipakai pengguna lain.");
+    // Employee.email is also @unique. An Employee row may exist with this
+    // email but no linked User account (e.g. legacy import); pre-flighting
+    // here turns the raw Prisma constraint error into a friendly message.
+    const dupeEmpEmail = await prisma.employee.findFirst({ where: { email } });
+    if (dupeEmpEmail) throw new Error("Email sudah dipakai pegawai lain.");
 
     const nextIncrementDate = computeNextIncrementDate({
       hireDate,

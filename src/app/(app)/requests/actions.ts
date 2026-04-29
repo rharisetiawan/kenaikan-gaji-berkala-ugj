@@ -37,11 +37,7 @@ export async function submitIncrementRequestAction(formData: FormData): Promise<
 
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
-    include: {
-      employee: {
-        include: { bkdEvaluations: true },
-      },
-    },
+    include: { employee: true },
   });
   if (!user?.employee) {
     throw new Error("Akun ini belum tertaut dengan data pegawai.");
@@ -71,25 +67,32 @@ export async function submitIncrementRequestAction(formData: FormData): Promise<
     }
   }
 
-  // Atomic check-and-create: two concurrent submissions from the same
-  // employee (e.g. double-click or two tabs) can both pass a non-transactional
-  // findFirst. Wrap rules read, BKD gate, financial computation, dupe check,
-  // and create in one Serializable transaction so:
+  // Atomic check-and-create. Wrap rules read, BKD evaluation read, BKD gate,
+  // financial computation, dupe check, and create in one Serializable
+  // transaction so:
+  //   - BKD evaluations seen by the gate live in the same isolation snapshot
+  //     as the rules and the dupe check (no split-brain if HR concurrently
+  //     marks an evaluation FAIL/PASS).
   //   - The financial snapshot stored on the IncrementRequest comes from the
-  //     same isolation snapshot as the BKD gate (no split-brain on rules).
+  //     same snapshot as the rules.
   //   - A DB blip on the rules read aborts the txn instead of silently
   //     falling back to hardcoded defaults (cf. the warning on
   //     getAppSettings in src/lib/app-settings.ts).
   const request = await prisma.$transaction(
     async (tx) => {
       const rules = await readKgbRulesInTx(tx);
+      // Re-read BKD evaluations inside the txn so the gate operates on the
+      // same isolation snapshot as the rules and dupe check above.
+      const bkdEvaluations = await tx.bkdEvaluation.findMany({
+        where: { employeeId: employee.id },
+      });
 
       // Dosen gate: block submission if BKD isn't passed for the configured
       // number of most-recent semesters. HR would otherwise reject; pre-
       // flighting avoids wasted uploads.
       if (
         employee.type === "DOSEN" &&
-        !dosenHasRecentBkdPasses(employee.bkdEvaluations, rules.dosenRequiredBkdPasses)
+        !dosenHasRecentBkdPasses(bkdEvaluations, rules.dosenRequiredBkdPasses)
       ) {
         throw new Error(
           `Pengajuan diblokir: BKD ${rules.dosenRequiredBkdPasses} semester terakhir belum lulus. Selesaikan BKD sebelum mengajukan KGB.`,
@@ -178,7 +181,6 @@ export async function submitRequestOnBehalfAction(formData: FormData): Promise<v
 
   const employee = await prisma.employee.findUnique({
     where: { id: employeeId },
-    include: { bkdEvaluations: true },
   });
   if (!employee) throw new Error("Pegawai tidak ditemukan.");
 
@@ -211,10 +213,13 @@ export async function submitRequestOnBehalfAction(formData: FormData): Promise<v
   const request = await prisma.$transaction(
     async (tx) => {
       const rules = await readKgbRulesInTx(tx);
+      const bkdEvaluations = await tx.bkdEvaluation.findMany({
+        where: { employeeId: employee.id },
+      });
 
       if (
         employee.type === "DOSEN" &&
-        !dosenHasRecentBkdPasses(employee.bkdEvaluations, rules.dosenRequiredBkdPasses)
+        !dosenHasRecentBkdPasses(bkdEvaluations, rules.dosenRequiredBkdPasses)
       ) {
         throw new Error(
           `Pengajuan diblokir: BKD ${rules.dosenRequiredBkdPasses} semester terakhir belum lulus.`,

@@ -28,9 +28,21 @@ export interface UserActionState {
  */
 function generateTempPassword(): string {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
-  const buf = randomBytes(10);
+  // Rejection sampling to avoid the modulo bias from `byte % 55`
+  // (since 256 % 55 != 0). Over-allocate the random pool so we
+  // virtually never need a refill; refill on the rare exhaustion.
+  let pool = randomBytes(64);
+  let cursor = 0;
+  const limit = 256 - (256 % alphabet.length);
   let out = "";
-  for (let i = 0; i < 10; i++) out += alphabet[buf[i] % alphabet.length];
+  while (out.length < 10) {
+    if (cursor >= pool.length) {
+      pool = randomBytes(64);
+      cursor = 0;
+    }
+    const b = pool[cursor++];
+    if (b < limit) out += alphabet[b % alphabet.length];
+  }
   return out;
 }
 
