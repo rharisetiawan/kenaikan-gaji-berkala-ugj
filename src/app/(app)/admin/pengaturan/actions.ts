@@ -9,7 +9,7 @@ import {
   DEFAULT_INCREMENT_PERCENT,
   DEFAULT_STAFF_MIN_PERFORMANCE_SCORE,
 } from "@/lib/app-settings";
-import { saveUpload } from "@/lib/uploads";
+import { saveUpload, rollbackUpload, type SavedUpload } from "@/lib/uploads";
 
 export interface UpdateAppSettingsState {
   success?: string;
@@ -118,6 +118,7 @@ export async function uploadLetterheadAction(
   formData: FormData,
 ): Promise<UpdateAppSettingsState> {
   await requireRole(["ADMIN"]);
+  let saved: SavedUpload | null = null;
   try {
     const file = formData.get("letterhead");
     if (!(file instanceof File) || file.size === 0) {
@@ -130,10 +131,20 @@ export async function uploadLetterheadAction(
       };
     }
     await ensureAppSettingsRow();
-    const saved = await saveUpload(file, "app-settings", "letterhead");
+    saved = await saveUpload(file, "app-settings", "letterhead", "singleton");
+    // PDFs read the letterhead via getLetterheadForPdf() which inlines a
+    // base64 data URI for Drive-backed files (using the service account)
+    // and falls through to letterheadUrl only for legacy Blob uploads.
+    // We therefore store the webViewLink purely as an admin convenience
+    // ("buka di Drive" link in /admin/pengaturan) — the PDF renderer
+    // never depends on the file being publicly accessible.
+    const letterheadUrl = saved.driveWebViewLink ?? saved.storedPath;
     await prisma.appSetting.update({
       where: { id: "singleton" },
-      data: { letterheadUrl: saved.storedPath },
+      data: {
+        letterheadUrl,
+        letterheadDriveFileId: saved.driveFileId,
+      },
     });
 
     revalidatePath("/admin/pengaturan");
@@ -144,6 +155,10 @@ export async function uploadLetterheadAction(
     revalidatePath("/foundation");
     return { success: "Kop surat berhasil diunggah." };
   } catch (e) {
+    // If the file landed in Drive but the AppSetting update failed,
+    // remove the orphan so we don't leave an unreferenced kop surat
+    // sitting in Drive with a public anyone-with-link permission.
+    if (saved) await rollbackUpload(saved);
     return { error: (e as Error).message };
   }
 }
@@ -158,7 +173,7 @@ export async function clearLetterheadAction(): Promise<void> {
   await ensureAppSettingsRow();
   await prisma.appSetting.update({
     where: { id: "singleton" },
-    data: { letterheadUrl: null },
+    data: { letterheadUrl: null, letterheadDriveFileId: null },
   });
   revalidatePath("/admin/pengaturan");
 }

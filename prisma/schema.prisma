@@ -346,12 +346,19 @@ model RequestDocument {
   requestId    String
   kind         DocumentKind
   originalName String
-  storedPath   String // relative to ./uploads/
-  mimeType     String
-  sizeBytes    Int
-  uploadedAt   DateTime         @default(now())
-  uploadedBy   User?            @relation("UploadedBy", fields: [uploadedById], references: [id], onDelete: SetNull)
-  uploadedById String?
+  // Legacy field. Newer uploads live in Google Drive — use driveFileId
+  // when present and treat storedPath as the fallback for files migrated
+  // from local disk / Vercel Blob. Kept non-nullable for back-compat with
+  // existing rows; new rows write a sentinel value `gdrive://<fileId>`
+  // here while the canonical reference is `driveFileId` below.
+  storedPath        String
+  driveFileId       String?
+  driveWebViewLink  String?
+  mimeType          String
+  sizeBytes         Int
+  uploadedAt        DateTime    @default(now())
+  uploadedBy        User?       @relation("UploadedBy", fields: [uploadedById], references: [id], onDelete: SetNull)
+  uploadedById      String?
 
   @@index([requestId, kind])
 }
@@ -414,7 +421,11 @@ model Certification {
   certificateNumber String? // nomor sertifikat
   issueDate         DateTime
   expiryDate        DateTime? // null = tidak kadaluwarsa
-  filePath          String? // stored path relative to ./uploads/
+  // Legacy local/Blob path; nullable because cert proof is optional. New
+  // uploads write to Drive and populate driveFileId + driveWebViewLink.
+  filePath          String?
+  driveFileId       String?
+  driveWebViewLink  String?
   fileName          String?
   fileMimeType      String?
   fileSizeBytes     Int?
@@ -506,6 +517,7 @@ model AppSetting {
   // printed at the top of every Surat Pengantar / SK Penetapan Berkala PDF.
   // NULL ⇒ fall back to the text-only header layout.
   letterheadUrl            String?
+  letterheadDriveFileId    String?
   // Percentage applied to currentBaseSalary every KGB cycle (default 0.03 = 3%).
   // Stored as Float (not Decimal) to keep runtime math simple; the 2-year
   // cycle is hardcoded because it is legally mandated and cannot be tuned.

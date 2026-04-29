@@ -13,7 +13,7 @@ export async function GET(
   const cert = await prisma.certification.findUnique({
     where: { id },
   });
-  if (!cert || !cert.filePath) {
+  if (!cert || (!cert.filePath && !cert.driveFileId)) {
     return new NextResponse("Not found", { status: 404 });
   }
 
@@ -27,12 +27,16 @@ export async function GET(
     return new NextResponse("Forbidden", { status: 403 });
   }
 
-  const result = await readStoredUpload(cert.filePath);
+  const result = await readStoredUpload(cert.filePath ?? "", cert.driveFileId);
 
   // Re-derive MIME from the stored extension (defense-in-depth — never trust
   // the value in cert.fileMimeType). Render PDFs/images inline; force download
-  // for any Office/unknown type.
-  const safeMime = safeMimeFor(cert.filePath);
+  // for any Office/unknown type. Drive-backed rows lean on `fileName` for the
+  // extension because filePath holds the gdrive:// sentinel.
+  const mimeSource = cert.driveFileId
+    ? cert.fileName ?? "file.bin"
+    : cert.filePath ?? "";
+  const safeMime = safeMimeFor(mimeSource);
   const isOfficeDoc =
     safeMime === "application/msword" ||
     safeMime ===

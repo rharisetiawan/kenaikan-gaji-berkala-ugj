@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
-import { saveUpload } from "@/lib/uploads";
+import { saveUpload, rollbackUpload } from "@/lib/uploads";
 import { CERTIFICATION_CATEGORIES } from "@/lib/hris";
 import type { CertificationCategory } from "@prisma/client";
 
@@ -76,18 +76,22 @@ export async function createCertificationAction(formData: FormData): Promise<voi
 
   const file = formData.get("file");
   if (file instanceof File && file.size > 0) {
+    let saved: Awaited<ReturnType<typeof saveUpload>> | null = null;
     try {
-      const saved = await saveUpload(file, `cert-${created.id}`, "CERT");
+      saved = await saveUpload(file, `cert-${created.id}`, "CERT", created.id);
       await prisma.certification.update({
         where: { id: created.id },
         data: {
           filePath: saved.storedPath,
+          driveFileId: saved.driveFileId,
+          driveWebViewLink: saved.driveWebViewLink,
           fileName: saved.originalName,
           fileMimeType: saved.mimeType,
           fileSizeBytes: saved.sizeBytes,
         },
       });
     } catch (err) {
+      if (saved) await rollbackUpload(saved);
       await prisma.certification.delete({ where: { id: created.id } });
       throw err;
     }
