@@ -47,6 +47,7 @@ const NAV_ITEMS: NavItem[] = [
     label: "Profil Saya",
     roles: ["ADMIN", "HR", "RECTOR", "FOUNDATION", "EMPLOYEE"],
   },
+  { href: "/admin", label: "Administrator", roles: ["ADMIN"] },
 ];
 
 function humanRole(role: UserRole): string {
