@@ -171,6 +171,7 @@ model Employee {
   performanceScores   PerformanceScore[]
   incrementHistory    IncrementHistory[]
   incrementRequests   IncrementRequest[]
+  certifications      Certification[]
   user                User?
 }
 
@@ -191,6 +192,8 @@ model DosenDetail {
   sintaId          String?
   orcid            String?
   googleScholarId  String?
+
+  publications     Publication[]
 }
 
 model StaffDetail {
@@ -373,4 +376,86 @@ model IncrementHistory {
   request          IncrementRequest? @relation("FromRequest")
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
+}
+
+// -----------------------------------------------------------------------------
+// HRIS Phase 2: Certifications (Dosen & Staff) + Publications (Dosen)
+//
+// These tables back the BAN-PT / LLDikti export and accreditation-ready
+// profile. They are self-editable by the employee, optionally verified by HR.
+// -----------------------------------------------------------------------------
+
+enum CertificationCategory {
+  SERDOS      // Sertifikasi Dosen (Kemdikbud / LLDikti)
+  PROFESI     // Sertifikasi Profesi (PII, HRCI, dll)
+  PELATIHAN   // Pelatihan / workshop / seminar
+  KEAHLIAN    // Sertifikasi keahlian / kompetensi
+  BAHASA      // TOEFL, IELTS, TOAFL, JLPT
+  LAINNYA
+}
+
+model Certification {
+  id               String                @id @default(cuid())
+  employee         Employee              @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId       String
+  name             String                // "Sertifikasi Dosen Profesional"
+  issuer           String                // "Kementerian Pendidikan"
+  category         CertificationCategory
+  certificateNumber String?              // nomor sertifikat
+  issueDate        DateTime
+  expiryDate       DateTime?             // null = tidak kadaluwarsa
+  filePath         String?               // stored path relative to ./uploads/
+  fileName         String?
+  fileMimeType     String?
+  fileSizeBytes    Int?
+  verified         Boolean               @default(false)
+  verifiedAt       DateTime?
+  notes            String?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  @@index([employeeId])
+  @@index([expiryDate])
+}
+
+enum PublicationKind {
+  JURNAL_NASIONAL
+  JURNAL_NASIONAL_TERAKREDITASI    // SINTA terakreditasi (S1-S6)
+  JURNAL_INTERNASIONAL
+  JURNAL_INTERNASIONAL_BEREPUTASI  // Scopus / WoS
+  PROSIDING_NASIONAL
+  PROSIDING_INTERNASIONAL
+  BUKU
+  BAB_BUKU
+  HKI                              // Hak Kekayaan Intelektual / paten
+  LAINNYA
+}
+
+enum AuthorRole {
+  FIRST_AUTHOR
+  CORRESPONDING_AUTHOR
+  COAUTHOR
+}
+
+model Publication {
+  id              String          @id @default(cuid())
+  dosenDetail     DosenDetail     @relation(fields: [dosenDetailId], references: [id], onDelete: Cascade)
+  dosenDetailId   String
+  title           String
+  kind            PublicationKind
+  year            Int
+  venue           String          // nama jurnal / prosiding / penerbit
+  doi             String?
+  url             String?
+  authorRole      AuthorRole
+  coauthors       String?         // penulis lain dipisah koma
+  sintaRank       String?         // "S1".."S6" untuk JURNAL_NASIONAL_TERAKREDITASI
+  scopusQuartile  String?         // "Q1".."Q4" untuk JURNAL_INTERNASIONAL_BEREPUTASI
+  verified        Boolean         @default(false)
+  verifiedAt      DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([dosenDetailId, year])
+  @@index([kind, year])
 }

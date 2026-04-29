@@ -167,7 +167,18 @@ export function SuratKeputusanDocument({ record }: { record: IncrementWithRelati
         </Text>
 
         <NumRow no="01." label="N a m a" value={emp.fullName.toUpperCase()} />
-        <NumRow no="02." label="Nomor Induk Staf" value={nisUpper} />
+        <NumRow
+          no="02."
+          label={emp.type === "DOSEN" ? "NIDN / Nomor Induk" : "Nomor Induk Staf"}
+          value={
+            emp.type === "DOSEN"
+              ? `${emp.dosenDetail?.nidn ?? "-"} / ${nisUpper}`
+              : nisUpper
+          }
+        />
+        {emp.type === "DOSEN" && (
+          <DosenIdentifiers dosen={emp.dosenDetail} />
+        )}
         <NumRow no="03." label="Pangkat / Golongan" value={golLabel.toUpperCase()} />
         <NumRow no="04." label="Tahun Masuk" value={formatLongDateID(emp.hireDate).toUpperCase()} />
         <NumRow
@@ -239,6 +250,31 @@ function NumRow({ no, label, value }: { no: string; label: string; value: string
       <Text style={styles.numColon}>:</Text>
       <Text style={styles.numValue}>{value}</Text>
     </View>
+  );
+}
+
+/**
+ * Per BAN-PT requirements, Dosen records should surface their academic
+ * research identifiers (Scopus / SINTA / ORCID / Google Scholar) on official
+ * letters when available. Rendered as a sub-note under item 02 — keeps the
+ * core 12-item template intact while making the SK accreditation-ready.
+ */
+function DosenIdentifiers({
+  dosen,
+}: {
+  dosen: (DosenDetail & { academicRank: AcademicRank }) | null;
+}) {
+  if (!dosen) return null;
+  const ids: string[] = [];
+  if (dosen.scopusId) ids.push(`Scopus ID: ${dosen.scopusId}`);
+  if (dosen.sintaId) ids.push(`SINTA ID: ${dosen.sintaId}`);
+  if (dosen.orcid) ids.push(`ORCID: ${dosen.orcid}`);
+  if (dosen.googleScholarId) ids.push(`Google Scholar: ${dosen.googleScholarId}`);
+  if (ids.length === 0) return null;
+  return (
+    <Text style={styles.subNote}>
+      ({ids.join(" · ")})
+    </Text>
   );
 }
 

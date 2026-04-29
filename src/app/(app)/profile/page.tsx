@@ -134,6 +134,44 @@ export default async function MyProfilePage() {
         )}
       </div>
 
+      {/* HRIS Phase 2 — accreditation modules */}
+      <div className={`grid gap-3 ${emp.type === "DOSEN" ? "sm:grid-cols-2" : ""}`}>
+        <Link
+          href="/profile/sertifikasi"
+          className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm hover:border-[var(--brand)] hover:shadow"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-semibold text-slate-900">
+                Sertifikasi &amp; Pelatihan
+              </div>
+              <div className="mt-1 text-xs text-slate-600">
+                Catat sertifikat profesi, pelatihan, dan keahlian Anda.
+              </div>
+            </div>
+            <span className="text-[var(--brand)]">→</span>
+          </div>
+        </Link>
+        {emp.type === "DOSEN" && (
+          <Link
+            href="/profile/publikasi"
+            className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm hover:border-[var(--brand)] hover:shadow"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-semibold text-slate-900">
+                  Publikasi Ilmiah
+                </div>
+                <div className="mt-1 text-xs text-slate-600">
+                  Jurnal, prosiding, buku, HKI untuk laporan SINTA &amp; BKD.
+                </div>
+              </div>
+              <span className="text-[var(--brand)]">→</span>
+            </div>
+          </Link>
+        )}
+      </div>
+
       {/* Read-only identity — managed by HR */}
       <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
         <div className="mb-3 flex items-center justify-between">

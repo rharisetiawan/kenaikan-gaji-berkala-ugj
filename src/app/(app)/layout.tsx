@@ -36,6 +36,7 @@ const NAV_ITEMS: NavItem[] = [
   },
   { href: "/hr", label: "Verifikasi Kepegawaian", roles: ["HR", "ADMIN"] },
   { href: "/hr/kelengkapan", label: "Kelengkapan Data", roles: ["HR", "ADMIN"] },
+  { href: "/hr/export", label: "Export BAN-PT", roles: ["HR", "ADMIN"] },
   { href: "/rector", label: "Tanda Tangan Rektor", roles: ["RECTOR", "ADMIN"] },
   { href: "/foundation", label: "Persetujuan Yayasan", roles: ["FOUNDATION", "ADMIN"] },
   { href: "/employees", label: "Data Pegawai", roles: ["HR", "ADMIN"] },
