@@ -10,6 +10,7 @@ import {
   humanReligion,
 } from "@/lib/profile";
 import { updateMyProfileAction } from "./actions";
+import { PhotoUploader } from "./PhotoUploader";
 
 export const dynamic = "force-dynamic";
 
@@ -103,6 +104,13 @@ export default async function MyProfilePage() {
           untuk dokumen resmi, akreditasi BAN-PT, dan laporan LLDikti.
         </p>
       </div>
+
+      <PhotoUploader
+        employeeId={emp.id}
+        fullName={emp.fullName}
+        hasPhoto={Boolean(emp.photoStoredPath)}
+        photoVersion={emp.photoSizeBytes ?? null}
+      />
 
       <div className="rounded-lg border border-slate-200 bg-white p-4">
         <div className="flex items-center justify-between gap-4">

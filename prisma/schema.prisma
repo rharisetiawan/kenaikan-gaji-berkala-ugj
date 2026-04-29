@@ -165,6 +165,15 @@ model Employee {
   emergencyContact String? // nama + hubungan + telp kontak darurat
   profileUpdatedAt DateTime? // nudged by the HR "Kelengkapan Data" page
 
+  // Profile photo. Stored via the same upload abstraction as documents
+  // (Drive in production, Vercel Blob fallback). When null the UI shows
+  // a generated initial-letter avatar.
+  photoStoredPath      String?
+  photoDriveFileId     String?
+  photoDriveWebViewLink String?
+  photoMimeType        String?
+  photoSizeBytes       Int?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

@@ -22,6 +22,7 @@ import {
   UserPlus,
   UserCog,
   Crown,
+  DatabaseZap,
   Settings,
   ChevronDown,
   Menu,
@@ -49,6 +50,7 @@ const ICONS: Record<IconName, React.ComponentType<{ className?: string }>> = {
   UserPlus,
   UserCog,
   Crown,
+  DatabaseZap,
   Settings,
 };
 

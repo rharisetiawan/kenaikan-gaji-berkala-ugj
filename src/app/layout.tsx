@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "SIM Kenaikan Gaji Berkala - Universitas Gajayana Malang",
+  title: "HRIS Universitas Gajayana",
   description:
-    "Sistem Informasi Manajemen Kenaikan Gaji Berkala Dosen dan Tenaga Kependidikan Universitas Gajayana Malang.",
+    "Sistem Informasi Kepegawaian Universitas Gajayana Malang — manajemen data pegawai, evaluasi kinerja, kenaikan gaji berkala, dan administrasi HR.",
 };
 
 export default function RootLayout({

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { EmployeeAvatar } from "@/components/EmployeeAvatar";
 import { requireRole } from "@/lib/auth";
 import { loadEmployeeWithDetails } from "@/lib/employees";
 import { evaluateEligibility, humanEligibilityStatus, humanRating } from "@/lib/eligibility";
@@ -52,7 +53,16 @@ export default async function EmployeeDetailPage({
         <div className="text-xs text-slate-500">
           <Link href="/employees" className="hover:underline">Data Pegawai</Link> / {employee.fullName}
         </div>
-        <h1 className="mt-1 text-2xl font-bold text-slate-900">{employee.fullName}</h1>
+        <div className="mt-2 flex items-start gap-4">
+          <EmployeeAvatar
+            employeeId={employee.id}
+            fullName={employee.fullName}
+            hasPhoto={Boolean(employee.photoStoredPath)}
+            version={employee.photoSizeBytes ?? null}
+            size={80}
+          />
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl font-bold text-slate-900">{employee.fullName}</h1>
         <div className="mt-1 flex flex-wrap gap-2 text-xs">
           <span className="rounded-full bg-slate-100 px-2 py-0.5 font-mono text-slate-700">
             NIP: {employee.nip}
@@ -79,6 +89,8 @@ export default async function EmployeeDetailPage({
           >
             {humanEligibilityStatus(eligibility.status)}
           </span>
+        </div>
+          </div>
         </div>
       </div>
 

@@ -28,10 +28,10 @@ export default async function LoginPage({
             />
           </div>
           <h1 className="text-xl font-semibold text-slate-900">
-            SIM Kenaikan Gaji Berkala
+            HRIS Universitas Gajayana
           </h1>
           <p className="mt-1 text-sm text-slate-600">
-            Universitas Gajayana Malang (UNIGA Malang)
+            Sistem Informasi Kepegawaian — UNIGA Malang
           </p>
         </div>
         <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
@@ -70,7 +70,15 @@ export default async function LoginPage({
           </div>
         </div>
         <p className="mt-6 text-center text-xs text-slate-500">
-          © {new Date().getFullYear()} Universitas Gajayana Malang · www.unigamalang.ac.id
+          © {new Date().getFullYear()} Universitas Gajayana Malang · Developed by{" "}
+          <a
+            href="https://weverx.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-slate-600 underline-offset-2 hover:underline"
+          >
+            weverx.com
+          </a>
         </p>
       </div>
     </div>
