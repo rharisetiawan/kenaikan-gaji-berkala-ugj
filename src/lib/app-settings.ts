@@ -113,13 +113,35 @@ export async function getLetterheadUrl(): Promise<string | null> {
  * fails (e.g. file deleted, service account lost access). PDFs gracefully
  * fall back to the text-only header in either case.
  */
+// Defense-in-depth: MIME types from Drive metadata are user-controlled
+// (admin uploads + Drive auto-detection), so we never embed them in a
+// data URI without validating against the same image allowlist that
+// `uploadLetterheadAction` accepts. Mirrors the check at
+// src/app/api/letterhead/route.ts.
+const ALLOWED_LETTERHEAD_MIMES = [
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+] as const;
+
 export async function getLetterheadForPdf(): Promise<string | null> {
   const s = await getAppSettings();
   if (s.letterheadDriveFileId) {
     try {
       const { streamDriveFile } = await import("./gdrive");
       const { bytes, mimeType } = await streamDriveFile(s.letterheadDriveFileId);
-      return `data:${mimeType};base64,${bytes.toString("base64")}`;
+      const safeMime = (ALLOWED_LETTERHEAD_MIMES as readonly string[]).includes(
+        mimeType,
+      )
+        ? mimeType
+        : null;
+      if (!safeMime) {
+        console.error(
+          `Letterhead Drive file has disallowed MIME ${mimeType}; falling back to text header.`,
+        );
+        return null;
+      }
+      return `data:${safeMime};base64,${bytes.toString("base64")}`;
     } catch (err) {
       console.error("Letterhead Drive fetch failed:", (err as Error).message);
       return null;

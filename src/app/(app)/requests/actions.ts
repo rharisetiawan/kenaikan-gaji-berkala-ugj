@@ -9,7 +9,7 @@ import {
   computeNextIncrementDate,
   dosenHasRecentBkdPasses,
 } from "@/lib/eligibility";
-import { getKgbRules, readKgbRulesInTx } from "@/lib/app-settings";
+import { readKgbRulesInTx } from "@/lib/app-settings";
 import { saveUpload, rollbackUpload, type SavedUpload } from "@/lib/uploads";
 import { requiredDocumentsFor, workflowEnabledFor } from "@/lib/requests";
 import type { DocumentKind, IncrementRequestStatus } from "@prisma/client";
@@ -60,28 +60,8 @@ export async function submitIncrementRequestAction(formData: FormData): Promise<
     );
   }
 
-  const rules = await getKgbRules();
-
-  // Dosen gate: block submission if BKD isn't passed for the configured
-  // number of most-recent semesters (AppSetting.dosenRequiredBkdPasses).
-  // HR would otherwise reject; pre-flighting avoids wasted uploads.
-  if (
-    employee.type === "DOSEN" &&
-    !dosenHasRecentBkdPasses(employee.bkdEvaluations, rules.dosenRequiredBkdPasses)
-  ) {
-    throw new Error(
-      `Pengajuan diblokir: BKD ${rules.dosenRequiredBkdPasses} semester terakhir belum lulus. Selesaikan BKD sebelum mengajukan KGB.`,
-    );
-  }
-
   const notes = (formData.get("notes") as string | null)?.toString() ?? null;
-
   const projectedEffectiveDate = computeNextIncrementDate(employee);
-  const incrementAmount = computeIncrementAmount(
-    employee.currentBaseSalary,
-    rules.incrementPercent,
-  );
-  const projectedNewSalary = employee.currentBaseSalary + incrementAmount;
 
   const required = requiredDocumentsFor(employee.type);
   for (const kind of required) {
@@ -93,10 +73,35 @@ export async function submitIncrementRequestAction(formData: FormData): Promise<
 
   // Atomic check-and-create: two concurrent submissions from the same
   // employee (e.g. double-click or two tabs) can both pass a non-transactional
-  // findFirst. Wrap both reads and write in a Serializable transaction so the
-  // DB rejects the second one.
+  // findFirst. Wrap rules read, BKD gate, financial computation, dupe check,
+  // and create in one Serializable transaction so:
+  //   - The financial snapshot stored on the IncrementRequest comes from the
+  //     same isolation snapshot as the BKD gate (no split-brain on rules).
+  //   - A DB blip on the rules read aborts the txn instead of silently
+  //     falling back to hardcoded defaults (cf. the warning on
+  //     getAppSettings in src/lib/app-settings.ts).
   const request = await prisma.$transaction(
     async (tx) => {
+      const rules = await readKgbRulesInTx(tx);
+
+      // Dosen gate: block submission if BKD isn't passed for the configured
+      // number of most-recent semesters. HR would otherwise reject; pre-
+      // flighting avoids wasted uploads.
+      if (
+        employee.type === "DOSEN" &&
+        !dosenHasRecentBkdPasses(employee.bkdEvaluations, rules.dosenRequiredBkdPasses)
+      ) {
+        throw new Error(
+          `Pengajuan diblokir: BKD ${rules.dosenRequiredBkdPasses} semester terakhir belum lulus. Selesaikan BKD sebelum mengajukan KGB.`,
+        );
+      }
+
+      const incrementAmount = computeIncrementAmount(
+        employee.currentBaseSalary,
+        rules.incrementPercent,
+      );
+      const projectedNewSalary = employee.currentBaseSalary + incrementAmount;
+
       const existing = await tx.incrementRequest.findFirst({
         where: {
           employeeId: employee.id,
@@ -187,23 +192,8 @@ export async function submitRequestOnBehalfAction(formData: FormData): Promise<v
       "Kenaikan Gaji Berkala hanya berlaku untuk pegawai tetap.",
     );
   }
-  const rules = await getKgbRules();
-  if (
-    employee.type === "DOSEN" &&
-    !dosenHasRecentBkdPasses(employee.bkdEvaluations, rules.dosenRequiredBkdPasses)
-  ) {
-    throw new Error(
-      `Pengajuan diblokir: BKD ${rules.dosenRequiredBkdPasses} semester terakhir belum lulus.`,
-    );
-  }
-
   const notes = (formData.get("notes") as string | null)?.toString() ?? null;
   const projectedEffectiveDate = computeNextIncrementDate(employee);
-  const incrementAmount = computeIncrementAmount(
-    employee.currentBaseSalary,
-    rules.incrementPercent,
-  );
-  const projectedNewSalary = employee.currentBaseSalary + incrementAmount;
 
   const required = requiredDocumentsFor(employee.type);
   for (const kind of required) {
@@ -213,8 +203,30 @@ export async function submitRequestOnBehalfAction(formData: FormData): Promise<v
     }
   }
 
+  // See submitIncrementRequestAction for the rationale: rules read + BKD
+  // gate + financial computation + dupe check + create all live in one
+  // Serializable transaction so the financial snapshot is derived from
+  // the same rules that gated the submission, and a DB blip on the rules
+  // read aborts the txn instead of silently using hardcoded defaults.
   const request = await prisma.$transaction(
     async (tx) => {
+      const rules = await readKgbRulesInTx(tx);
+
+      if (
+        employee.type === "DOSEN" &&
+        !dosenHasRecentBkdPasses(employee.bkdEvaluations, rules.dosenRequiredBkdPasses)
+      ) {
+        throw new Error(
+          `Pengajuan diblokir: BKD ${rules.dosenRequiredBkdPasses} semester terakhir belum lulus.`,
+        );
+      }
+
+      const incrementAmount = computeIncrementAmount(
+        employee.currentBaseSalary,
+        rules.incrementPercent,
+      );
+      const projectedNewSalary = employee.currentBaseSalary + incrementAmount;
+
       const existing = await tx.incrementRequest.findFirst({
         where: {
           employeeId: employee.id,
