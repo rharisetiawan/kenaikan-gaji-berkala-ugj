@@ -28,6 +28,12 @@ export async function loginAction(
   if (!ok) {
     return { error: "Email atau kata sandi salah." };
   }
+  if (!user.isActive) {
+    return {
+      error:
+        "Akun ini dinonaktifkan. Hubungi ADMIN untuk mengaktifkan kembali.",
+    };
+  }
 
   await createSession(user);
   redirect("/dashboard");

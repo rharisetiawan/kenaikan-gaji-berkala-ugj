@@ -1,6 +1,7 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import type { User, UserRole } from "@prisma/client";
 
@@ -60,11 +61,29 @@ export async function getSession(): Promise<SessionPayload | null> {
   }
 }
 
-export async function requireUser(): Promise<SessionPayload> {
+// Wrapped with React.cache so that multiple server components in the
+// same render tree (e.g. layout + sidebar + page) share a single DB
+// lookup per request instead of hitting Prisma once per call site.
+export const requireUser = cache(async function requireUser(): Promise<SessionPayload> {
   const session = await getSession();
   if (!session) redirect("/login");
-  return session;
-}
+  // Re-validate isActive AND role against the DB on every authenticated
+  // request so that ADMIN deactivation/role changes take effect immediately —
+  // the JWT itself lives for 7 days, so relying on the login-time check alone
+  // would leave deactivated/demoted users with full access until the cookie
+  // expires.
+  const row = await prisma.user.findUnique({
+    where: { id: session.userId },
+    select: { isActive: true, role: true },
+  });
+  if (!row || !row.isActive) {
+    await destroySession();
+    redirect("/login?error=inactive");
+  }
+  // Sync the role from the DB so a freshly demoted ADMIN can't reuse their
+  // stale JWT to keep super-admin access for up to 7 days.
+  return { ...session, role: row.role };
+});
 
 export async function requireRole(roles: UserRole[]): Promise<SessionPayload> {
   const session = await requireUser();

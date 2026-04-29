@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { readFile } from "node:fs/promises";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
-import { resolveUpload, safeMimeFor } from "@/lib/uploads";
+import { readStoredUpload, safeMimeFor } from "@/lib/uploads";
 
 export async function GET(
   _req: Request,
@@ -26,14 +25,17 @@ export async function GET(
     }
   }
 
-  const absPath = resolveUpload(doc.storedPath);
-  const bytes = await readFile(absPath);
+  const result = await readStoredUpload(doc.storedPath, doc.driveFileId);
 
   // Re-derive the MIME type from the stored filename extension rather than
   // trusting the value in `doc.mimeType` (defense-in-depth — even if an old
   // row predates the MIME-allowlist fix, it gets sanitized at read time).
   // Office docs are sent as attachment; PDFs/images can safely render inline.
-  const safeMime = safeMimeFor(doc.storedPath);
+  // For Drive-backed rows storedPath is a `gdrive://` sentinel so we fall
+  // back to the originalName which always carries the real extension.
+  const safeMime = safeMimeFor(
+    doc.storedPath.startsWith("gdrive://") ? doc.originalName : doc.storedPath,
+  );
   const isOfficeDoc =
     safeMime === "application/msword" ||
     safeMime ===
@@ -48,7 +50,7 @@ export async function GET(
   // quotes/newlines that could break out of the header.
   const safeName = doc.originalName.replace(/[^\w.\-]+/g, "_");
 
-  return new NextResponse(new Uint8Array(bytes), {
+  return new NextResponse(new Uint8Array(result.bytes), {
     headers: {
       "Content-Type": safeMime,
       "X-Content-Type-Options": "nosniff",

@@ -9,7 +9,7 @@
  * wiring each placeholder to the corresponding IncrementHistory/Employee
  * field.
  */
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer";
 import type {
   IncrementHistory,
   Employee,
@@ -29,6 +29,18 @@ type IncrementWithRelations = IncrementHistory & {
   };
   generatedBy: User | null;
 };
+
+/**
+ * Live official snapshot (Ketua Yayasan). The PDF falls back to
+ * `record.signedByName` / `record.signedByPosition` when a signed decree
+ * has been archived with its own names — those should remain immutable
+ * once issued — and to the live snapshot for freshly generated PDFs.
+ */
+export interface OfficialSnapshot {
+  name: string;
+  nip: string | null;
+  title: string;
+}
 
 const styles = StyleSheet.create({
   page: {
@@ -80,9 +92,28 @@ const styles = StyleSheet.create({
   signPos: { marginTop: 2, fontSize: 10, color: "#444" },
   tembusan: { marginTop: 20, fontSize: 10 },
   tembusanItem: { marginLeft: 20 },
+  letterhead: {
+    width: "100%",
+    marginBottom: 12,
+    borderBottom: "1 solid #0a3b7a",
+    paddingBottom: 6,
+  },
 });
 
-export function SuratKeputusanDocument({ record }: { record: IncrementWithRelations }) {
+export function SuratKeputusanDocument({
+  record,
+  foundationChair,
+  letterheadUrl,
+}: {
+  record: IncrementWithRelations;
+  foundationChair?: OfficialSnapshot;
+  /**
+   * Absolute URL to the institutional letterhead image (Vercel Blob).
+   * When present, replaces the text-only header block. Falls back to
+   * the text header when null/undefined.
+   */
+  letterheadUrl?: string | null;
+}) {
   const emp = record.employee;
   const golLabel =
     emp.type === "DOSEN"
@@ -111,16 +142,22 @@ export function SuratKeputusanDocument({ record }: { record: IncrementWithRelati
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        <View style={styles.header}>
-          <Text style={styles.hdrOrg}>YAYASAN PEMBINA PENDIDIKAN GAJAYANA</Text>
-          <Text style={styles.hdrSub}>UNIVERSITAS GAJAYANA MALANG</Text>
-          <Text style={styles.hdrAddress}>
-            Jalan Mertojoyo Blok L, Merjosari, Kecamatan Lowokwaru, Kota Malang, Jawa Timur
-          </Text>
-          <Text style={styles.hdrAddress}>
-            Telp. (0341) 000-0000 · Laman: www.unigamalang.ac.id · Surel: info@unigamalang.ac.id
-          </Text>
-        </View>
+        {letterheadUrl ? (
+          // @react-pdf/renderer's Image is not an HTML <img> and has no alt prop.
+          // eslint-disable-next-line jsx-a11y/alt-text
+          <Image src={letterheadUrl} style={styles.letterhead} />
+        ) : (
+          <View style={styles.header}>
+            <Text style={styles.hdrOrg}>YAYASAN PEMBINA PENDIDIKAN GAJAYANA</Text>
+            <Text style={styles.hdrSub}>UNIVERSITAS GAJAYANA MALANG</Text>
+            <Text style={styles.hdrAddress}>
+              Jalan Mertojoyo Blok L, Merjosari, Kecamatan Lowokwaru, Kota Malang, Jawa Timur
+            </Text>
+            <Text style={styles.hdrAddress}>
+              Telp. (0341) 000-0000 · Laman: www.unigamalang.ac.id · Surel: info@unigamalang.ac.id
+            </Text>
+          </View>
+        )}
 
         <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 12 }}>
           <View style={{ width: "60%" }}>
@@ -167,7 +204,18 @@ export function SuratKeputusanDocument({ record }: { record: IncrementWithRelati
         </Text>
 
         <NumRow no="01." label="N a m a" value={emp.fullName.toUpperCase()} />
-        <NumRow no="02." label="Nomor Induk Staf" value={nisUpper} />
+        <NumRow
+          no="02."
+          label={emp.type === "DOSEN" ? "NIDN / Nomor Induk" : "Nomor Induk Staf"}
+          value={
+            emp.type === "DOSEN"
+              ? `${emp.dosenDetail?.nidn ?? "-"} / ${nisUpper}`
+              : nisUpper
+          }
+        />
+        {emp.type === "DOSEN" && (
+          <DosenIdentifiers dosen={emp.dosenDetail} />
+        )}
         <NumRow no="03." label="Pangkat / Golongan" value={golLabel.toUpperCase()} />
         <NumRow no="04." label="Tahun Masuk" value={formatLongDateID(emp.hireDate).toUpperCase()} />
         <NumRow
@@ -207,10 +255,12 @@ export function SuratKeputusanDocument({ record }: { record: IncrementWithRelati
         <View style={styles.signBox}>
           <Text>Ketua,</Text>
           <Text style={styles.signLine}>
-            {record.signedByName ?? "Dr. Rosidi, SE, MM. Ak"}
+            {record.signedByName ?? foundationChair?.name ?? "Dr. Rosidi, SE, MM. Ak"}
           </Text>
           <Text style={styles.signPos}>
-            {record.signedByPosition ?? "Ketua Yayasan Pembina Pendidikan Gajayana"}
+            {record.signedByPosition ??
+              foundationChair?.title ??
+              "Ketua Yayasan Pembina Pendidikan Gajayana"}
           </Text>
         </View>
 
@@ -239,6 +289,31 @@ function NumRow({ no, label, value }: { no: string; label: string; value: string
       <Text style={styles.numColon}>:</Text>
       <Text style={styles.numValue}>{value}</Text>
     </View>
+  );
+}
+
+/**
+ * Per BAN-PT requirements, Dosen records should surface their academic
+ * research identifiers (Scopus / SINTA / ORCID / Google Scholar) on official
+ * letters when available. Rendered as a sub-note under item 02 — keeps the
+ * core 12-item template intact while making the SK accreditation-ready.
+ */
+function DosenIdentifiers({
+  dosen,
+}: {
+  dosen: (DosenDetail & { academicRank: AcademicRank }) | null;
+}) {
+  if (!dosen) return null;
+  const ids: string[] = [];
+  if (dosen.scopusId) ids.push(`Scopus ID: ${dosen.scopusId}`);
+  if (dosen.sintaId) ids.push(`SINTA ID: ${dosen.sintaId}`);
+  if (dosen.orcid) ids.push(`ORCID: ${dosen.orcid}`);
+  if (dosen.googleScholarId) ids.push(`Google Scholar: ${dosen.googleScholarId}`);
+  if (ids.length === 0) return null;
+  return (
+    <Text style={styles.subNote}>
+      ({ids.join(" · ")})
+    </Text>
   );
 }
 

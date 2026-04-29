@@ -105,6 +105,47 @@ async function main() {
     },
   });
 
+  // Organization officials (editable at /admin/pejabat). Names here are
+  // bootstraps only — once ADMIN edits them at runtime the DB is the
+  // source of truth and subsequent seed runs leave them alone.
+  console.log("Seeding organization officials...");
+  await prisma.orgOfficial.upsert({
+    where: { role: "RECTOR" },
+    update: {},
+    create: {
+      role: "RECTOR",
+      name: "Prof. Dr. Ernani Hadiyati, S.E., M.M.",
+      nip: null,
+      title: "Rektor Universitas Gajayana Malang",
+    },
+  });
+  await prisma.orgOfficial.upsert({
+    where: { role: "FOUNDATION_CHAIR" },
+    update: {},
+    create: {
+      role: "FOUNDATION_CHAIR",
+      name: "Dr. Rosidi, SE, MM. Ak",
+      nip: null,
+      title: "Ketua Yayasan Pembina Pendidikan Gajayana",
+    },
+  });
+
+  // Global AppSetting singleton (letterhead + KGB rule variables).
+  // Seed with defaults matching the university's legal rule set; ADMIN
+  // tunes these later at /admin/pengaturan.
+  console.log("Seeding app settings singleton...");
+  await prisma.appSetting.upsert({
+    where: { id: "singleton" },
+    update: {},
+    create: {
+      id: "singleton",
+      letterheadUrl: null,
+      incrementPercent: 0.03,
+      staffMinPerformanceScore: 76,
+      dosenRequiredBkdPasses: 2,
+    },
+  });
+
   console.log("Seeding employees...");
 
   const today = new Date();
@@ -434,6 +475,57 @@ async function main() {
         generatedById: admin?.id,
       },
     });
+  }
+
+  // HRIS Phase 2 — sample certifications + publications so HR/Dosen pages
+  // are not empty after a fresh seed. Idempotent: dedup by name+employee.
+  console.log("Seeding sample certifications & publications...");
+  const bambang = await prisma.employee.findFirst({ where: { nip: "197305101999031002" } });
+  const dewi = await prisma.employee.findFirst({
+    where: { nip: "198711112015041003" },
+    include: { dosenDetail: { select: { id: true } } },
+  });
+
+  if (bambang) {
+    const exists = await prisma.certification.findFirst({
+      where: { employeeId: bambang.id, name: "Sertifikasi Dosen Profesional" },
+    });
+    if (!exists) {
+      await prisma.certification.create({
+        data: {
+          employeeId: bambang.id,
+          name: "Sertifikasi Dosen Profesional",
+          issuer: "Kementerian Pendidikan, Kebudayaan, Riset, dan Teknologi",
+          category: "SERDOS",
+          certificateNumber: "SERDOS/2014/0710057301",
+          issueDate: new Date("2014-08-01"),
+          verified: true,
+          verifiedAt: new Date(),
+        },
+      });
+    }
+  }
+
+  if (dewi?.dosenDetail) {
+    const pubExists = await prisma.publication.findFirst({
+      where: {
+        dosenDetailId: dewi.dosenDetail.id,
+        title: "Penerapan Task-Based Learning pada Pembelajaran Bahasa Inggris di SMA",
+      },
+    });
+    if (!pubExists) {
+      await prisma.publication.create({
+        data: {
+          dosenDetailId: dewi.dosenDetail.id,
+          title: "Penerapan Task-Based Learning pada Pembelajaran Bahasa Inggris di SMA",
+          kind: "JURNAL_NASIONAL_TERAKREDITASI",
+          year: 2024,
+          venue: "Jurnal Pendidikan Bahasa dan Sastra Indonesia",
+          authorRole: "FIRST_AUTHOR",
+          sintaRank: "S3",
+        },
+      });
+    }
   }
 
   // Link each employee with a self-service user account.

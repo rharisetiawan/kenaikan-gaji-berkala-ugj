@@ -8,6 +8,7 @@ import {
   foundationRejectAction,
   foundationIssueSkAction,
 } from "@/app/(app)/requests/actions";
+import { getOfficial } from "@/lib/officials";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,10 @@ export default async function FoundationDetailPage({
   });
   if (!r) notFound();
 
+  // Pull the live Yayasan chair from /admin/pejabat so the "Penandatangan"
+  // default matches whoever is currently seated. The Yayasan user can still
+  // override before submitting.
+  const foundationChair = await getOfficial("FOUNDATION_CHAIR");
   const now = new Date();
   const monthRoman = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"][
     now.getMonth()
@@ -136,7 +141,7 @@ export default async function FoundationDetailPage({
                 type="text"
                 name="signedByName"
                 required
-                defaultValue="Prof. Dr. Hj. Ernani Hadiyati, S.E., M.S."
+                defaultValue={foundationChair.name}
                 className="mt-1 block w-full rounded-md border border-emerald-300 bg-white px-3 py-1.5 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
               />
             </div>
@@ -146,7 +151,7 @@ export default async function FoundationDetailPage({
                 type="text"
                 name="signedByPosition"
                 required
-                defaultValue="Rektor Universitas Gajayana Malang"
+                defaultValue={foundationChair.title}
                 className="mt-1 block w-full rounded-md border border-emerald-300 bg-white px-3 py-1.5 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
               />
             </div>

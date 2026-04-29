@@ -9,6 +9,7 @@ import {
   statusProgressPercent,
 } from "@/lib/requests";
 import { computeIncrementAmount } from "@/lib/eligibility";
+import { getKgbRules } from "@/lib/app-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +44,11 @@ export default async function MyRequestsPage() {
     ["SUBMITTED", "HR_VERIFIED", "RECTOR_SIGNED", "FOUNDATION_APPROVED"].includes(r.status),
   );
   const canSubmitKgb = emp.employmentStatus === "TETAP";
-  const projectedIncrement = computeIncrementAmount(emp.currentBaseSalary);
+  const rules = await getKgbRules();
+  const projectedIncrement = computeIncrementAmount(
+    emp.currentBaseSalary,
+    rules.incrementPercent,
+  );
   const projectedNewSalary = emp.currentBaseSalary + projectedIncrement;
 
   if (session.role !== "EMPLOYEE" && session.role !== "ADMIN") {

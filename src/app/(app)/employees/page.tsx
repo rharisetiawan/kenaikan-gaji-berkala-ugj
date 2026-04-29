@@ -3,6 +3,7 @@ import { requireRole } from "@/lib/auth";
 import { loadAllEmployeesWithDetails, evaluateAll } from "@/lib/employees";
 import { formatDateID, formatRupiah, formatServiceLength } from "@/lib/format";
 import { humanEligibilityStatus } from "@/lib/eligibility";
+import { getKgbRules } from "@/lib/app-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,8 @@ export default async function EmployeesPage({
   const q = (params.q ?? "").trim().toLowerCase();
 
   const all = await loadAllEmployeesWithDetails();
-  const evaluations = evaluateAll(all);
+  const rules = await getKgbRules();
+  const evaluations = evaluateAll(all, new Date(), rules);
 
   const filtered = evaluations.filter(({ employee }) => {
     if (typeFilter && employee.type !== typeFilter) return false;

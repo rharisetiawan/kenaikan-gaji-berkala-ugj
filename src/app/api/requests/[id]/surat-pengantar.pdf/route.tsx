@@ -3,6 +3,8 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { SuratPengantarDocument } from "@/lib/pdf/SuratPengantar";
+import { getOfficial } from "@/lib/officials";
+import { getLetterheadForPdf } from "@/lib/app-settings";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -40,7 +42,17 @@ export async function GET(_req: Request, context: { params: Promise<{ id: string
     );
   }
 
-  const buffer = await renderToBuffer(<SuratPengantarDocument record={req} />);
+  const [rector, letterheadUrl] = await Promise.all([
+    getOfficial("RECTOR"),
+    getLetterheadForPdf(),
+  ]);
+  const buffer = await renderToBuffer(
+    <SuratPengantarDocument
+      record={req}
+      rector={rector}
+      letterheadUrl={letterheadUrl}
+    />,
+  );
   const arrayBuffer = buffer.buffer.slice(
     buffer.byteOffset,
     buffer.byteOffset + buffer.byteLength,

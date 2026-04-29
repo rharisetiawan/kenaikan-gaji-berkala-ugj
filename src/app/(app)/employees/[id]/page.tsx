@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { loadEmployeeWithDetails } from "@/lib/employees";
 import { evaluateEligibility, humanEligibilityStatus, humanRating } from "@/lib/eligibility";
+import { getKgbRules } from "@/lib/app-settings";
 import { formatDateID, formatRupiah, formatServiceLength } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { IssueIncrementForm } from "./IssueIncrementForm";
@@ -21,7 +22,8 @@ export default async function EmployeeDetailPage({
   const employee = await loadEmployeeWithDetails(id);
   if (!employee) notFound();
 
-  const eligibility = evaluateEligibility(employee);
+  const rules = await getKgbRules();
+  const eligibility = evaluateEligibility(employee, new Date(), rules);
   const history = await prisma.incrementHistory.findMany({
     where: { employeeId: id },
     orderBy: { effectiveDate: "desc" },
@@ -79,6 +81,20 @@ export default async function EmployeeDetailPage({
           </span>
         </div>
       </div>
+
+      {employee.employmentStatus === "TETAP" && (
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href={`/hr/ajukan-atas-nama/${employee.id}`}
+            className="rounded-md bg-[var(--brand)] px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[var(--brand-dark)]"
+          >
+            Ajukan KGB Atas Nama Pegawai
+          </Link>
+          <span className="rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-600">
+            Dipakai bila pegawai tidak bisa mengisi sendiri.
+          </span>
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-3">
         <InfoCard label="Gaji Pokok Saat Ini" value={formatRupiah(employee.currentBaseSalary)} />

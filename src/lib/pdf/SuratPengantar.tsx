@@ -4,7 +4,7 @@
  * covering letter on page 1 and the "Lampiran" attachment table (one row
  * per employee included in this request) on page 2.
  */
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer";
 import type {
   IncrementRequest,
   Employee,
@@ -93,6 +93,12 @@ const styles = StyleSheet.create({
     textAlign: "right",
   },
   footerNote: { marginTop: 24, fontSize: 9, color: "#555" },
+  letterhead: {
+    width: "100%",
+    marginBottom: 12,
+    borderBottom: "1 solid #0a3b7a",
+    paddingBottom: 6,
+  },
 });
 
 // Column widths (percent) for the Lampiran table.
@@ -111,7 +117,27 @@ const COLW = {
   rapel: 40,
 };
 
-export function SuratPengantarDocument({ record }: { record: RequestWithRelations }) {
+export interface OfficialSnapshot {
+  name: string;
+  nip: string | null;
+  title: string;
+}
+
+export function SuratPengantarDocument({
+  record,
+  rector,
+  letterheadUrl,
+}: {
+  record: RequestWithRelations;
+  rector?: OfficialSnapshot;
+  /**
+   * Absolute URL to the institutional letterhead image (Vercel Blob).
+   * When present, replaces the text-only header block with the image.
+   * Falls back to the text header when null/undefined so existing
+   * deployments that haven't uploaded a letterhead keep the old layout.
+   */
+  letterheadUrl?: string | null;
+}) {
   const emp = record.employee;
   const unit =
     emp.type === "DOSEN"
@@ -137,16 +163,22 @@ export function SuratPengantarDocument({ record }: { record: RequestWithRelation
     <Document>
       {/* Page 1 — Cover letter (matches "Surat Rektor - Pengantar ke Yayasan.doc") */}
       <Page size="A4" style={styles.page}>
-        <View style={styles.header}>
-          <Text style={styles.hdrSmall}>YAYASAN PEMBINA PENDIDIKAN GAJAYANA</Text>
-          <Text style={styles.hdrBig}>UNIVERSITAS GAJAYANA MALANG</Text>
-          <Text style={styles.hdrAddress}>
-            Jalan Mertojoyo Blok L, Merjosari, Kecamatan Lowokwaru, Kota Malang, Jawa Timur
-          </Text>
-          <Text style={styles.hdrAddress}>
-            Telp. (0341) 000-0000 · Laman: www.unigamalang.ac.id · Surel: info@unigamalang.ac.id
-          </Text>
-        </View>
+        {letterheadUrl ? (
+          // @react-pdf/renderer's Image is not an HTML <img> and has no alt prop.
+          // eslint-disable-next-line jsx-a11y/alt-text
+          <Image src={letterheadUrl} style={styles.letterhead} />
+        ) : (
+          <View style={styles.header}>
+            <Text style={styles.hdrSmall}>YAYASAN PEMBINA PENDIDIKAN GAJAYANA</Text>
+            <Text style={styles.hdrBig}>UNIVERSITAS GAJAYANA MALANG</Text>
+            <Text style={styles.hdrAddress}>
+              Jalan Mertojoyo Blok L, Merjosari, Kecamatan Lowokwaru, Kota Malang, Jawa Timur
+            </Text>
+            <Text style={styles.hdrAddress}>
+              Telp. (0341) 000-0000 · Laman: www.unigamalang.ac.id · Surel: info@unigamalang.ac.id
+            </Text>
+          </View>
+        )}
 
         <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 12 }}>
           <View style={{ width: "55%" }}>
@@ -198,9 +230,16 @@ export function SuratPengantarDocument({ record }: { record: RequestWithRelation
         <View style={styles.signBox}>
           <Text>Rektor,</Text>
           <Text style={styles.signLine}>
-            {record.rectorSignedBy?.name ?? "Prof. Dr. Ernani Hadiyati, S.E., M.M."}
+            {record.rectorSignedBy?.name ??
+              rector?.name ??
+              "Prof. Dr. Ernani Hadiyati, S.E., M.M."}
           </Text>
-          <Text style={styles.signPos}>NIP. —</Text>
+          {/* Only show the live rector NIP when the displayed name also comes
+              from the live rector snapshot. If a historical signer is recorded
+              on the request itself, we don't have their NIP, so leave a dash. */}
+          <Text style={styles.signPos}>
+            NIP. {record.rectorSignedBy ? "—" : (rector?.nip ?? "—")}
+          </Text>
         </View>
 
         <Text style={styles.footerNote}>
@@ -266,9 +305,13 @@ export function SuratPengantarDocument({ record }: { record: RequestWithRelation
               textDecoration: "underline",
             }}
           >
-            {record.rectorSignedBy?.name ?? "Prof. Dr. Ernani Hadiyati, S.E., M.M."}
+            {record.rectorSignedBy?.name ??
+              rector?.name ??
+              "Prof. Dr. Ernani Hadiyati, S.E., M.M."}
           </Text>
-          <Text style={{ marginLeft: "55%", fontSize: 10, color: "#444" }}>NIP. —</Text>
+          <Text style={{ marginLeft: "55%", fontSize: 10, color: "#444" }}>
+            NIP. {record.rectorSignedBy ? "—" : (rector?.nip ?? "—")}
+          </Text>
         </View>
       </Page>
     </Document>

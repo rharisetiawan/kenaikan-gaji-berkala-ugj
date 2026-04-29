@@ -1,7 +1,11 @@
 // Core business logic for Kenaikan Gaji Berkala (KGB) eligibility.
 //
-// The rules encoded here intentionally mirror common university HR practice.
-// They can be tuned without touching UI or storage layers.
+// Historically the rule variables (increment percent, staff minimum score,
+// required Dosen BKD passes) lived here as `export const` and were inlined
+// at call sites. They are now tunable per-installation via the AppSetting
+// singleton — see `src/lib/app-settings.ts`. The constants below remain as
+// DEFAULTS so unit tests / scripts / seed files that don't go through the
+// DB still produce the intended KGB behaviour.
 
 import type {
   BkdEvaluation,
@@ -12,15 +16,49 @@ import type {
   PayGrade,
   AcademicRank,
 } from "@prisma/client";
+import {
+  DEFAULT_DOSEN_REQUIRED_BKD_PASSES,
+  DEFAULT_INCREMENT_PERCENT,
+  DEFAULT_KGB_RULES,
+  DEFAULT_STAFF_MIN_PERFORMANCE_SCORE,
+  type KgbRules,
+} from "./app-settings";
 
 export const INCREMENT_INTERVAL_YEARS = 2;
-export const INCREMENT_PERCENT = 0.03; // 3% of current base salary per periodic increment
 
-// Minimum evaluations a Dosen must have passed (over the latest 2 semesters).
-export const DOSEN_REQUIRED_BKD_PASSES = 2;
+// Re-exports of the defaults under the historical names so existing imports
+// (`import { INCREMENT_PERCENT } from "@/lib/eligibility"`) keep working.
+// Prefer the AppSetting-backed values at call sites that can `await`.
+export const INCREMENT_PERCENT = DEFAULT_INCREMENT_PERCENT;
+export const DOSEN_REQUIRED_BKD_PASSES = DEFAULT_DOSEN_REQUIRED_BKD_PASSES;
+export const STAFF_MIN_PERFORMANCE_SCORE = DEFAULT_STAFF_MIN_PERFORMANCE_SCORE;
 
-// Minimum performance score (0-100) a Staff must hit on the last annual review.
-export const STAFF_MIN_PERFORMANCE_SCORE = 76;
+/**
+ * Sort BKD evaluations newest-first (by academicYear desc, then semester desc).
+ * Semester values like "GANJIL"/"GENAP" sort lexicographically — GENAP > GANJIL.
+ */
+export function sortBkdNewestFirst(evals: BkdEvaluation[]): BkdEvaluation[] {
+  return [...evals].sort((a, b) => {
+    if (a.academicYear !== b.academicYear) return a.academicYear < b.academicYear ? 1 : -1;
+    return a.semester < b.semester ? 1 : -1;
+  });
+}
+
+/**
+ * Returns true iff the Dosen has `requiredPasses` most-recent evaluations
+ * and all of them are PASS. The caller supplies the required count (comes
+ * from AppSetting.dosenRequiredBkdPasses); defaults to 2 if omitted.
+ */
+export function dosenHasRecentBkdPasses(
+  evals: BkdEvaluation[],
+  requiredPasses: number = DEFAULT_DOSEN_REQUIRED_BKD_PASSES,
+): boolean {
+  const latest = sortBkdNewestFirst(evals).slice(0, requiredPasses);
+  return (
+    latest.length === requiredPasses &&
+    latest.every((b) => b.status === "PASS")
+  );
+}
 
 export type EligibilityStatus = "ELIGIBLE" | "NOT_YET" | "BLOCKED" | "INSUFFICIENT_DATA";
 
@@ -60,9 +98,12 @@ export function computeNextIncrementDate(employee: Pick<Employee, "hireDate" | "
   return addYears(base, INCREMENT_INTERVAL_YEARS);
 }
 
-export function computeIncrementAmount(currentBaseSalary: number): number {
+export function computeIncrementAmount(
+  currentBaseSalary: number,
+  incrementPercent: number = DEFAULT_INCREMENT_PERCENT,
+): number {
   // Round to nearest 100 IDR to match payroll policy.
-  const raw = currentBaseSalary * INCREMENT_PERCENT;
+  const raw = currentBaseSalary * incrementPercent;
   return Math.round(raw / 100) * 100;
 }
 
@@ -89,9 +130,13 @@ export function computeNextGolongan(code: string | null | undefined): string | n
 export function evaluateEligibility(
   employee: EmployeeWithDetails,
   today: Date = new Date(),
+  rules: KgbRules = DEFAULT_KGB_RULES,
 ): EligibilityResult {
   const projectedEffectiveDate = computeNextIncrementDate(employee);
-  const incrementAmount = computeIncrementAmount(employee.currentBaseSalary);
+  const incrementAmount = computeIncrementAmount(
+    employee.currentBaseSalary,
+    rules.incrementPercent,
+  );
   const projectedNewSalary = employee.currentBaseSalary + incrementAmount;
 
   const reasons: string[] = [];
@@ -121,21 +166,19 @@ export function evaluateEligibility(
       };
     }
 
-    const sortedBkd = [...employee.bkdEvaluations].sort((a, b) => {
-      if (a.academicYear !== b.academicYear) return a.academicYear < b.academicYear ? 1 : -1;
-      // GANJIL comes after GENAP of the same academic year in practice
-      return a.semester < b.semester ? 1 : -1;
-    });
-    const latest = sortedBkd.slice(0, DOSEN_REQUIRED_BKD_PASSES);
+    const sortedBkd = sortBkdNewestFirst(employee.bkdEvaluations);
+    const latest = sortedBkd.slice(0, rules.dosenRequiredBkdPasses);
 
-    if (latest.length < DOSEN_REQUIRED_BKD_PASSES) {
+    if (latest.length < rules.dosenRequiredBkdPasses) {
       reasons.push(
-        `Data BKD belum mencukupi (diperlukan ${DOSEN_REQUIRED_BKD_PASSES} semester terakhir, tersedia ${latest.length}).`,
+        `Data BKD belum mencukupi (diperlukan ${rules.dosenRequiredBkdPasses} semester terakhir, tersedia ${latest.length}).`,
       );
     }
 
-    const allPassed = latest.length === DOSEN_REQUIRED_BKD_PASSES && latest.every((b) => b.status === "PASS");
-    if (latest.length === DOSEN_REQUIRED_BKD_PASSES && !allPassed) {
+    const allPassed =
+      latest.length === rules.dosenRequiredBkdPasses &&
+      latest.every((b) => b.status === "PASS");
+    if (latest.length === rules.dosenRequiredBkdPasses && !allPassed) {
       const failing = latest.filter((b) => b.status !== "PASS");
       reasons.push(
         `BKD belum lulus pada semester: ${failing
@@ -143,7 +186,7 @@ export function evaluateEligibility(
           .join(", ")}.`,
       );
     } else if (allPassed) {
-      reasons.push(`BKD ${DOSEN_REQUIRED_BKD_PASSES} semester terakhir: LULUS.`);
+      reasons.push(`BKD ${rules.dosenRequiredBkdPasses} semester terakhir: LULUS.`);
     }
 
     reasons.push(
@@ -165,9 +208,9 @@ export function evaluateEligibility(
     const latestScore = [...employee.performanceScores].sort((a, b) => b.year - a.year)[0];
     if (!latestScore) {
       reasons.push("Belum ada data penilaian kinerja tahunan.");
-    } else if (latestScore.score < STAFF_MIN_PERFORMANCE_SCORE) {
+    } else if (latestScore.score < rules.staffMinPerformanceScore) {
       reasons.push(
-        `Nilai kinerja tahun ${latestScore.year} (${latestScore.score.toFixed(2)}) di bawah ambang ${STAFF_MIN_PERFORMANCE_SCORE}.`,
+        `Nilai kinerja tahun ${latestScore.year} (${latestScore.score.toFixed(2)}) di bawah ambang ${rules.staffMinPerformanceScore}.`,
       );
     } else {
       reasons.push(
@@ -189,18 +232,12 @@ export function evaluateEligibility(
 
   // Within 3 months window (including overdue).
   if (employee.type === "DOSEN") {
-    const sortedBkd = [...employee.bkdEvaluations].sort((a, b) => {
-      if (a.academicYear !== b.academicYear) return a.academicYear < b.academicYear ? 1 : -1;
-      return a.semester < b.semester ? 1 : -1;
-    });
-    const latest = sortedBkd.slice(0, DOSEN_REQUIRED_BKD_PASSES);
-    const allPassed = latest.length === DOSEN_REQUIRED_BKD_PASSES && latest.every((b) => b.status === "PASS");
-    if (!allPassed) {
+    if (!dosenHasRecentBkdPasses(employee.bkdEvaluations, rules.dosenRequiredBkdPasses)) {
       return { status: "BLOCKED", reasons, projectedEffectiveDate, projectedNewSalary, incrementAmount };
     }
   } else {
     const latestScore = [...employee.performanceScores].sort((a, b) => b.year - a.year)[0];
-    if (!latestScore || latestScore.score < STAFF_MIN_PERFORMANCE_SCORE) {
+    if (!latestScore || latestScore.score < rules.staffMinPerformanceScore) {
       return { status: "BLOCKED", reasons, projectedEffectiveDate, projectedNewSalary, incrementAmount };
     }
   }
