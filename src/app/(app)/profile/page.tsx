@@ -83,8 +83,12 @@ export default async function MyProfilePage() {
   const pangkat = emp.type === "DOSEN"
     ? emp.dosenDetail?.academicRank.name
     : emp.staffDetail?.payGrade.name;
+  // Only Staff have a human-readable golongan code (e.g. "III/a"). Dosen
+  // AcademicRank.code is a Prisma enum value (e.g. "LEKTOR_KEPALA") that
+  // is internal-only — we already render the friendly `name` as `pangkat`,
+  // so suppress the parenthetical for Dosen.
   const golongan = emp.type === "DOSEN"
-    ? emp.dosenDetail?.academicRank.code
+    ? null
     : emp.staffDetail?.payGrade.code;
 
   return (
