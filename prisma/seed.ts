@@ -130,6 +130,22 @@ async function main() {
     },
   });
 
+  // Global AppSetting singleton (letterhead + KGB rule variables).
+  // Seed with defaults matching the university's legal rule set; ADMIN
+  // tunes these later at /admin/pengaturan.
+  console.log("Seeding app settings singleton...");
+  await prisma.appSetting.upsert({
+    where: { id: "singleton" },
+    update: {},
+    create: {
+      id: "singleton",
+      letterheadUrl: null,
+      incrementPercent: 0.03,
+      staffMinPerformanceScore: 76,
+      dosenRequiredBkdPasses: 2,
+    },
+  });
+
   console.log("Seeding employees...");
 
   const today = new Date();

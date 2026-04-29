@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/auth";
 import { loadEmployeeWithDetails } from "@/lib/employees";
 import { evaluateEligibility, humanEligibilityStatus, humanRating } from "@/lib/eligibility";
+import { getKgbRules } from "@/lib/app-settings";
 import { formatDateID, formatRupiah, formatServiceLength } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { IssueIncrementForm } from "./IssueIncrementForm";
@@ -21,7 +22,8 @@ export default async function EmployeeDetailPage({
   const employee = await loadEmployeeWithDetails(id);
   if (!employee) notFound();
 
-  const eligibility = evaluateEligibility(employee);
+  const rules = await getKgbRules();
+  const eligibility = evaluateEligibility(employee, new Date(), rules);
   const history = await prisma.incrementHistory.findMany({
     where: { employeeId: id },
     orderBy: { effectiveDate: "desc" },

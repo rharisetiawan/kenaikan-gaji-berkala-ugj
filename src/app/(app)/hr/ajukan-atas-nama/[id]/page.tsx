@@ -6,9 +6,9 @@ import { formatDateID, formatRupiah } from "@/lib/format";
 import {
   computeIncrementAmount,
   computeNextIncrementDate,
-  DOSEN_REQUIRED_BKD_PASSES,
   dosenHasRecentBkdPasses,
 } from "@/lib/eligibility";
+import { getKgbRules } from "@/lib/app-settings";
 import { humanDocumentKind, requiredDocumentsFor, workflowEnabledFor } from "@/lib/requests";
 import { submitRequestOnBehalfAction } from "@/app/(app)/requests/actions";
 
@@ -39,7 +39,11 @@ export default async function FileOnBehalfPage({
   });
   if (!emp) notFound();
 
-  const projectedIncrement = computeIncrementAmount(emp.currentBaseSalary);
+  const rules = await getKgbRules();
+  const projectedIncrement = computeIncrementAmount(
+    emp.currentBaseSalary,
+    rules.incrementPercent,
+  );
   const projectedNewSalary = emp.currentBaseSalary + projectedIncrement;
   const projectedDate = computeNextIncrementDate(emp);
   const required = requiredDocumentsFor(emp.type);
@@ -51,8 +55,11 @@ export default async function FileOnBehalfPage({
     if (emp.employmentStatus !== "TETAP") {
       return `KGB hanya berlaku untuk pegawai tetap (status saat ini: ${emp.employmentStatus}).`;
     }
-    if (emp.type === "DOSEN" && !dosenHasRecentBkdPasses(emp.bkdEvaluations)) {
-      return `Pengajuan diblokir: BKD ${DOSEN_REQUIRED_BKD_PASSES} semester terakhir belum lulus.`;
+    if (
+      emp.type === "DOSEN" &&
+      !dosenHasRecentBkdPasses(emp.bkdEvaluations, rules.dosenRequiredBkdPasses)
+    ) {
+      return `Pengajuan diblokir: BKD ${rules.dosenRequiredBkdPasses} semester terakhir belum lulus.`;
     }
     return null;
   })();
@@ -122,7 +129,7 @@ export default async function FileOnBehalfPage({
           <input type="hidden" name="employeeId" value={emp.id} />
           <h2 className="text-sm font-semibold text-slate-900">Dokumen Pendukung</h2>
           <p className="text-xs text-slate-500">
-            Unggah berkas dari pegawai (scan/foto). Ukuran maks 10 MB per
+            Unggah berkas dari pegawai (scan/foto). Ukuran maks 25 MB per
             berkas. Format: PDF, JPG, PNG, DOC/DOCX, XLS/XLSX.
           </p>
           {required.map((kind) => (

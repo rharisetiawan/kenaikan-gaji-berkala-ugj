@@ -25,13 +25,17 @@ export async function GET(
     }
   }
 
-  const result = await readStoredUpload(doc.storedPath);
+  const result = await readStoredUpload(doc.storedPath, doc.driveFileId);
 
   // Re-derive the MIME type from the stored filename extension rather than
   // trusting the value in `doc.mimeType` (defense-in-depth — even if an old
   // row predates the MIME-allowlist fix, it gets sanitized at read time).
   // Office docs are sent as attachment; PDFs/images can safely render inline.
-  const safeMime = safeMimeFor(doc.storedPath);
+  // For Drive-backed rows storedPath is a `gdrive://` sentinel so we fall
+  // back to the originalName which always carries the real extension.
+  const safeMime = safeMimeFor(
+    doc.storedPath.startsWith("gdrive://") ? doc.originalName : doc.storedPath,
+  );
   const isOfficeDoc =
     safeMime === "application/msword" ||
     safeMime ===

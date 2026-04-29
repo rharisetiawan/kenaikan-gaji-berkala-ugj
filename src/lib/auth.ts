@@ -1,6 +1,7 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import type { User, UserRole } from "@prisma/client";
 
@@ -60,7 +61,10 @@ export async function getSession(): Promise<SessionPayload | null> {
   }
 }
 
-export async function requireUser(): Promise<SessionPayload> {
+// Wrapped with React.cache so that multiple server components in the
+// same render tree (e.g. layout + sidebar + page) share a single DB
+// lookup per request instead of hitting Prisma once per call site.
+export const requireUser = cache(async function requireUser(): Promise<SessionPayload> {
   const session = await getSession();
   if (!session) redirect("/login");
   // Re-validate isActive AND role against the DB on every authenticated
@@ -79,7 +83,7 @@ export async function requireUser(): Promise<SessionPayload> {
   // Sync the role from the DB so a freshly demoted ADMIN can't reuse their
   // stale JWT to keep super-admin access for up to 7 days.
   return { ...session, role: row.role };
-}
+});
 
 export async function requireRole(roles: UserRole[]): Promise<SessionPayload> {
   const session = await requireUser();

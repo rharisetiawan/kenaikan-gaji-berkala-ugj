@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { loadAllEmployeesWithDetails, evaluateAll } from "@/lib/employees";
 import { formatDateID, formatRupiah } from "@/lib/format";
 import { humanEligibilityStatus } from "@/lib/eligibility";
+import { getKgbRules } from "@/lib/app-settings";
 import { requireUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { humanRequestStatus, requestStatusColor } from "@/lib/requests";
@@ -31,7 +32,8 @@ export default async function DashboardPage() {
 
   const today = new Date();
   const employees = await loadAllEmployeesWithDetails();
-  const evaluations = evaluateAll(employees, today);
+  const rules = await getKgbRules();
+  const evaluations = evaluateAll(employees, today, rules);
   const activeRequests = await prisma.incrementRequest.findMany({
     where: {
       status: { in: ["SUBMITTED", "HR_VERIFIED", "RECTOR_SIGNED", "FOUNDATION_APPROVED"] },

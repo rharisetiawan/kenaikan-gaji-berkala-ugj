@@ -36,6 +36,12 @@ export default async function AdminOverviewPage() {
       desc: "Atur nama Rektor & Ketua Yayasan yang tercetak di surat.",
       stat: `${officialCount} pejabat terisi`,
     },
+    {
+      href: "/admin/pengaturan",
+      title: "Pengaturan",
+      desc: "Kop surat PDF dan aturan KGB (persen kenaikan, ambang kinerja, BKD).",
+      stat: "Berlaku global",
+    },
   ];
 
   return (

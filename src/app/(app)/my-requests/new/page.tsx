@@ -7,8 +7,8 @@ import {
   computeIncrementAmount,
   computeNextIncrementDate,
   dosenHasRecentBkdPasses,
-  DOSEN_REQUIRED_BKD_PASSES,
 } from "@/lib/eligibility";
+import { getKgbRules } from "@/lib/app-settings";
 import { humanDocumentKind, requiredDocumentsFor, workflowEnabledFor } from "@/lib/requests";
 import { submitIncrementRequestAction } from "@/app/(app)/requests/actions";
 
@@ -38,7 +38,11 @@ export default async function NewRequestPage() {
     );
   }
   const emp = user.employee;
-  const projectedIncrement = computeIncrementAmount(emp.currentBaseSalary);
+  const rules = await getKgbRules();
+  const projectedIncrement = computeIncrementAmount(
+    emp.currentBaseSalary,
+    rules.incrementPercent,
+  );
   const projectedNewSalary = emp.currentBaseSalary + projectedIncrement;
   const projectedDate = computeNextIncrementDate(emp);
   const required = requiredDocumentsFor(emp.type);
@@ -87,7 +91,10 @@ export default async function NewRequestPage() {
     );
   }
 
-  if (emp.type === "DOSEN" && !dosenHasRecentBkdPasses(emp.bkdEvaluations)) {
+  if (
+    emp.type === "DOSEN" &&
+    !dosenHasRecentBkdPasses(emp.bkdEvaluations, rules.dosenRequiredBkdPasses)
+  ) {
     return (
       <div className="mx-auto max-w-2xl space-y-4">
         <div>
@@ -98,11 +105,11 @@ export default async function NewRequestPage() {
         </div>
         <div className="rounded-lg border border-rose-300 bg-rose-50 p-4 text-sm text-rose-900">
           <p className="font-semibold">
-            Pengajuan diblokir: BKD {DOSEN_REQUIRED_BKD_PASSES} semester terakhir belum lulus
+            Pengajuan diblokir: BKD {rules.dosenRequiredBkdPasses} semester terakhir belum lulus
           </p>
           <p className="mt-1 text-rose-800">
             Kenaikan Gaji Berkala hanya dapat diajukan jika hasil Evaluasi Kinerja Dosen (BKD)
-            pada {DOSEN_REQUIRED_BKD_PASSES} semester terakhir berstatus <b>LULUS</b>. Mohon
+            pada {rules.dosenRequiredBkdPasses} semester terakhir berstatus <b>LULUS</b>. Mohon
             selesaikan BKD terlebih dahulu. Hubungi Bagian Kepegawaian bila data BKD Anda belum
             termutakhirkan.
           </p>
@@ -151,7 +158,7 @@ export default async function NewRequestPage() {
       >
         <h2 className="text-sm font-semibold text-slate-900">Dokumen Pendukung</h2>
         <p className="text-xs text-slate-500">
-          Ukuran maksimum 10 MB per berkas. Format yang didukung: PDF, JPG, PNG, DOC/DOCX, XLS/XLSX.
+          Ukuran maksimum 25 MB per berkas. Format yang didukung: PDF, JPG, PNG, DOC/DOCX, XLS/XLSX.
         </p>
         {required.map((kind) => (
           <div key={kind}>

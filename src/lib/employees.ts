@@ -5,6 +5,7 @@ import {
   type EmployeeWithDetails,
   type EligibilityResult,
 } from "@/lib/eligibility";
+import { DEFAULT_KGB_RULES, type KgbRules } from "@/lib/app-settings";
 
 export async function loadEmployeeWithDetails(id: string): Promise<EmployeeWithDetails | null> {
   return prisma.employee.findUnique({
@@ -38,10 +39,11 @@ export interface EmployeeEvaluation {
 export function evaluateAll(
   employees: EmployeeWithDetails[],
   today: Date = new Date(),
+  rules: KgbRules = DEFAULT_KGB_RULES,
 ): EmployeeEvaluation[] {
   return employees.map((employee) => ({
     employee,
-    eligibility: evaluateEligibility(employee, today),
+    eligibility: evaluateEligibility(employee, today, rules),
   }));
 }
 
