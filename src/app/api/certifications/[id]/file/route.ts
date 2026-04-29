@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { readFile } from "node:fs/promises";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
-import { resolveUpload, safeMimeFor } from "@/lib/uploads";
+import { readStoredUpload, safeMimeFor } from "@/lib/uploads";
 
 export async function GET(
   _req: Request,
@@ -28,8 +27,7 @@ export async function GET(
     return new NextResponse("Forbidden", { status: 403 });
   }
 
-  const absPath = resolveUpload(cert.filePath);
-  const bytes = await readFile(absPath);
+  const result = await readStoredUpload(cert.filePath);
 
   // Re-derive MIME from the stored extension (defense-in-depth — never trust
   // the value in cert.fileMimeType). Render PDFs/images inline; force download
@@ -47,7 +45,7 @@ export async function GET(
 
   const safeName = (cert.fileName ?? "sertifikat").replace(/[^\w.\-]+/g, "_");
 
-  return new NextResponse(new Uint8Array(bytes), {
+  return new NextResponse(new Uint8Array(result.bytes), {
     headers: {
       "Content-Type": safeMime,
       "X-Content-Type-Options": "nosniff",

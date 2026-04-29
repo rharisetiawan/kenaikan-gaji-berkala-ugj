@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { readFile } from "node:fs/promises";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
-import { resolveUpload, safeMimeFor } from "@/lib/uploads";
+import { readStoredUpload, safeMimeFor } from "@/lib/uploads";
 
 export async function GET(
   _req: Request,
@@ -26,8 +25,7 @@ export async function GET(
     }
   }
 
-  const absPath = resolveUpload(doc.storedPath);
-  const bytes = await readFile(absPath);
+  const result = await readStoredUpload(doc.storedPath);
 
   // Re-derive the MIME type from the stored filename extension rather than
   // trusting the value in `doc.mimeType` (defense-in-depth — even if an old
@@ -48,7 +46,7 @@ export async function GET(
   // quotes/newlines that could break out of the header.
   const safeName = doc.originalName.replace(/[^\w.\-]+/g, "_");
 
-  return new NextResponse(new Uint8Array(bytes), {
+  return new NextResponse(new Uint8Array(result.bytes), {
     headers: {
       "Content-Type": safeMime,
       "X-Content-Type-Options": "nosniff",

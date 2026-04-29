@@ -1,12 +1,12 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
 
 /**
- * Root directory for uploaded documents. Files are stored here (outside
- * `public/`) and served via an authenticated route that enforces access
- * control before streaming the bytes.
+ * Root directory for uploaded documents when using local disk storage.
+ * In production on Vercel, uploads are offloaded to Vercel Blob (see
+ * `saveUpload`) and this path is unused.
  */
 export const UPLOAD_ROOT = path.join(process.cwd(), "uploads");
 
@@ -43,19 +43,29 @@ function sanitizeName(name: string): string {
 }
 
 export interface SavedUpload {
-  storedPath: string; // relative to UPLOAD_ROOT, always using forward slashes
+  /**
+   * Either a relative path inside `UPLOAD_ROOT` (for local disk) or an
+   * absolute `https://...` URL (for Vercel Blob). Consumers MUST use
+   * `readStoredUpload` rather than interpreting this value directly.
+   */
+  storedPath: string;
   originalName: string;
   mimeType: string;
   sizeBytes: number;
 }
 
+function isBlobStorageEnabled(): boolean {
+  return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+}
+
 /**
- * Persist a File (from a multipart/form-data Server Action) under
- * `uploads/<requestId>/<kind>-<random>.<ext>`.
+ * Persist a File (from a multipart/form-data Server Action) either to local
+ * disk (`uploads/<scope>/<kind>-<random>.<ext>`) or to Vercel Blob when the
+ * `BLOB_READ_WRITE_TOKEN` env var is present.
  */
 export async function saveUpload(
   file: File,
-  requestId: string,
+  scope: string,
   kind: string,
 ): Promise<SavedUpload> {
   if (!file || file.size === 0) {
@@ -69,33 +79,113 @@ export async function saveUpload(
     throw new Error("Format berkas tidak didukung. Unggah PDF/JPG/PNG/DOC/XLS.");
   }
 
-  const dir = path.join(UPLOAD_ROOT, requestId);
-  if (!existsSync(dir)) {
-    await mkdir(dir, { recursive: true });
-  }
-
   const random = randomBytes(6).toString("hex");
   const extMatch = originalName.match(SAFE_EXT);
   const ext = extMatch ? extMatch[0] : ".bin";
   const fileName = `${kind.toLowerCase()}-${random}${ext}`;
-  const abs = path.join(dir, fileName);
+  const mimeType = safeMimeFor(fileName);
 
+  if (isBlobStorageEnabled()) {
+    const { put } = await import("@vercel/blob");
+    const key = `${scope}/${fileName}`;
+    const buffer = Buffer.from(await file.arrayBuffer());
+    // Blobs are intentionally stored as "public" URLs but we NEVER redirect
+    // clients to those URLs. Instead, `readStoredUpload` fetches bytes
+    // server-side and streams them through the authenticated API route so
+    // every access is auth-gated and wrapped in the same CSP/nosniff
+    // headers as the local-disk path.
+    const blob = await put(key, buffer, {
+      access: "public",
+      contentType: mimeType,
+      addRandomSuffix: false,
+      allowOverwrite: false,
+    });
+    return {
+      storedPath: blob.url,
+      originalName,
+      mimeType,
+      sizeBytes: file.size,
+    };
+  }
+
+  const dir = path.join(UPLOAD_ROOT, scope);
+  if (!existsSync(dir)) {
+    await mkdir(dir, { recursive: true });
+  }
+  const abs = path.join(dir, fileName);
   const buffer = Buffer.from(await file.arrayBuffer());
   await writeFile(abs, buffer);
 
   return {
-    storedPath: `${requestId}/${fileName}`,
+    storedPath: `${scope}/${fileName}`,
     originalName,
-    // Derive from the validated extension — never trust `file.type` because
-    // the client can spoof it (e.g. .pdf with text/html to trigger stored XSS
-    // when served inline).
-    mimeType: safeMimeFor(fileName),
+    mimeType,
     sizeBytes: file.size,
   };
 }
 
+function isBlobUrl(storedPath: string): boolean {
+  return /^https?:\/\//i.test(storedPath);
+}
+
+/**
+ * Strict allowlist of hostnames we're willing to issue an outbound `fetch()`
+ * to when re-reading a stored upload. Vercel Blob URLs are served from
+ * `<store-id>.public.blob.vercel-storage.com`; any other host (especially
+ * internal metadata endpoints like `169.254.169.254` or private RFC1918
+ * addresses) must be rejected as a defense-in-depth measure against DB
+ * tampering / SSRF. Callers are already auth-gated, but we still refuse to
+ * fetch arbitrary URLs even for authenticated HR/ADMIN users.
+ */
+function isTrustedBlobHost(storedPath: string): boolean {
+  let host: string;
+  try {
+    host = new URL(storedPath).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  return /^[a-z0-9-]+\.public\.blob\.vercel-storage\.com$/.test(host);
+}
+
+/**
+ * Return the absolute local disk path for a stored upload. Only valid when
+ * `storedPath` is NOT a Vercel Blob URL — callers should branch on
+ * `isBlobUrl` first or use `readStoredUpload`.
+ */
 export function resolveUpload(storedPath: string): string {
+  if (isBlobUrl(storedPath)) {
+    throw new Error("resolveUpload cannot be used with Blob URLs");
+  }
   const normalized = storedPath.replace(/\\/g, "/");
   if (normalized.includes("..")) throw new Error("Path tidak valid.");
   return path.join(UPLOAD_ROOT, normalized);
+}
+
+export type StoredUploadResult = { kind: "bytes"; bytes: Buffer };
+
+/**
+ * Read a stored upload, whether it lives on local disk or Vercel Blob,
+ * and return the raw bytes. Blob URLs are fetched server-side rather than
+ * handed out via redirect so the API route can wrap every response in the
+ * same auth gate + CSP/nosniff headers as the local-disk path. This keeps
+ * "public" blob storage private in effect: the blob URL never reaches the
+ * client.
+ */
+export async function readStoredUpload(
+  storedPath: string,
+): Promise<StoredUploadResult> {
+  if (isBlobUrl(storedPath)) {
+    if (!isTrustedBlobHost(storedPath)) {
+      throw new Error("Blob URL host tidak dikenali.");
+    }
+    const res = await fetch(storedPath, { cache: "no-store" });
+    if (!res.ok) {
+      throw new Error(`Blob fetch failed (${res.status})`);
+    }
+    const ab = await res.arrayBuffer();
+    return { kind: "bytes", bytes: Buffer.from(ab) };
+  }
+  const abs = resolveUpload(storedPath);
+  const bytes = await readFile(abs);
+  return { kind: "bytes", bytes };
 }
