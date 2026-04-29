@@ -12,6 +12,7 @@ import type {
 
 const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
 const PHOTO_MIME_ALLOWLIST = new Set(["image/jpeg", "image/png", "image/webp"]);
+const PHOTO_EXT_ALLOWLIST = /\.(jpe?g|png|webp)$/i;
 
 // Acceptable enum values (kept as plain arrays so we can validate raw form
 // strings without importing runtime enums from @prisma/client).
@@ -198,7 +199,12 @@ export async function uploadMyPhotoAction(
   if (file.size > PHOTO_MAX_BYTES) {
     return { error: "Ukuran foto melebihi 5 MB." };
   }
-  if (!PHOTO_MIME_ALLOWLIST.has(file.type)) {
+  // Two-layer validation: file.type is browser-supplied and trivially
+  // spoofable, so we ALSO require the filename extension to be an
+  // image. saveUpload's SAFE_EXT regex accepts pdf/doc/xls — without
+  // the extension check a client could spoof Content-Type and store a
+  // PDF as a profile photo.
+  if (!PHOTO_MIME_ALLOWLIST.has(file.type) || !PHOTO_EXT_ALLOWLIST.test(file.name)) {
     return { error: "Format foto harus JPG, PNG, atau WEBP." };
   }
   let saved;
