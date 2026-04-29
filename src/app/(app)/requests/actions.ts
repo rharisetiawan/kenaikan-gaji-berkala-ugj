@@ -4,7 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
-import { computeIncrementAmount, computeNextIncrementDate } from "@/lib/eligibility";
+import {
+  computeIncrementAmount,
+  computeNextIncrementDate,
+  DOSEN_REQUIRED_BKD_PASSES,
+  dosenHasRecentBkdPasses,
+} from "@/lib/eligibility";
 import { saveUpload } from "@/lib/uploads";
 import { requiredDocumentsFor, workflowEnabledFor } from "@/lib/requests";
 import type { DocumentKind, IncrementRequestStatus } from "@prisma/client";
@@ -32,7 +37,11 @@ export async function submitIncrementRequestAction(formData: FormData): Promise<
 
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
-    include: { employee: true },
+    include: {
+      employee: {
+        include: { bkdEvaluations: true },
+      },
+    },
   });
   if (!user?.employee) {
     throw new Error("Akun ini belum tertaut dengan data pegawai.");
@@ -48,6 +57,14 @@ export async function submitIncrementRequestAction(formData: FormData): Promise<
   if (employee.employmentStatus !== "TETAP") {
     throw new Error(
       "Kenaikan Gaji Berkala hanya berlaku untuk pegawai tetap.",
+    );
+  }
+
+  // Dosen gate: block submission if BKD isn't passed for the latest 2 semesters.
+  // HR would otherwise reject; pre-flighting avoids wasted uploads.
+  if (employee.type === "DOSEN" && !dosenHasRecentBkdPasses(employee.bkdEvaluations)) {
+    throw new Error(
+      `Pengajuan diblokir: BKD ${DOSEN_REQUIRED_BKD_PASSES} semester terakhir belum lulus. Selesaikan BKD sebelum mengajukan KGB.`,
     );
   }
 
