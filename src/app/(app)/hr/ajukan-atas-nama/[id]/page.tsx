@@ -129,7 +129,7 @@ export default async function FileOnBehalfPage({
           <input type="hidden" name="employeeId" value={emp.id} />
           <h2 className="text-sm font-semibold text-slate-900">Dokumen Pendukung</h2>
           <p className="text-xs text-slate-500">
-            Unggah berkas dari pegawai (scan/foto). Ukuran maks 10 MB per
+            Unggah berkas dari pegawai (scan/foto). Ukuran maks 25 MB per
             berkas. Format: PDF, JPG, PNG, DOC/DOCX, XLS/XLSX.
           </p>
           {required.map((kind) => (

@@ -109,10 +109,15 @@ export async function updateKgbRulesAction(
 }
 
 /**
- * Replace the letterhead image. We reuse `saveUpload()` so the file lands
- * in the same Vercel Blob store as other uploads and the same 10 MB /
- * MIME allowlist applies.
+ * Replace the letterhead image. We reuse `saveUpload()` for storage,
+ * but enforce a stricter 5 MB cap here than the generic 25 MB cap used
+ * for KGB documents: the letterhead is base64-inlined as a data URI by
+ * `getLetterheadForPdf()` during every PDF render, so a 25 MB image
+ * would balloon to ~33 MB of in-memory string per render and risk OOM
+ * on Vercel's serverless runtime under concurrent load.
  */
+const LETTERHEAD_MAX_BYTES = 5 * 1024 * 1024;
+
 export async function uploadLetterheadAction(
   _prev: UpdateAppSettingsState,
   formData: FormData,
@@ -123,6 +128,11 @@ export async function uploadLetterheadAction(
     const file = formData.get("letterhead");
     if (!(file instanceof File) || file.size === 0) {
       return { error: "Berkas kop surat wajib dipilih." };
+    }
+    if (file.size > LETTERHEAD_MAX_BYTES) {
+      return {
+        error: "Ukuran berkas kop surat melebihi 5 MB. Kompres gambar (mis. ke PNG 300 DPI atau JPG quality 85) sebelum upload.",
+      };
     }
     const lowered = file.name.toLowerCase();
     if (!/\.(png|jpe?g|webp)$/.test(lowered)) {

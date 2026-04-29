@@ -36,7 +36,7 @@ export function LetterheadForm({ hasLetterhead, cacheKey }: Props) {
       <div>
         <div className="text-sm font-semibold text-slate-900">Kop Surat</div>
         <div className="text-xs text-slate-500">
-          Unggah gambar kop surat resmi (PNG/JPG/WEBP, maks 10 MB) yang akan
+          Unggah gambar kop surat resmi (PNG/JPG/WEBP, maks 5 MB) yang akan
           otomatis dicetak di bagian atas Surat Pengantar dan SK Penetapan
           Berkala. Rasio lebar:tinggi yang ideal sekitar 8:1 (mengikuti
           format A4 landscape).

@@ -158,7 +158,7 @@ export default async function NewRequestPage() {
       >
         <h2 className="text-sm font-semibold text-slate-900">Dokumen Pendukung</h2>
         <p className="text-xs text-slate-500">
-          Ukuran maksimum 10 MB per berkas. Format yang didukung: PDF, JPG, PNG, DOC/DOCX, XLS/XLSX.
+          Ukuran maksimum 25 MB per berkas. Format yang didukung: PDF, JPG, PNG, DOC/DOCX, XLS/XLSX.
         </p>
         {required.map((kind) => (
           <div key={kind}>

@@ -246,7 +246,7 @@ export default async function SertifikasiPage() {
               className="mt-1 block w-full rounded-md border border-slate-300 text-sm file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200"
             />
             <p className="mt-1 text-xs text-slate-500">
-              Opsional. Format: PDF/JPG/PNG, maksimum 10 MB.
+              Opsional. Format: PDF/JPG/PNG, maksimum 25 MB.
             </p>
           </div>
           <div className="sm:col-span-2 flex justify-end">
