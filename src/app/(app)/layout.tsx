@@ -2,18 +2,50 @@ import Image from "next/image";
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { logoutAction } from "@/app/login/actions";
+import { prisma } from "@/lib/prisma";
 import { NavLink } from "./NavLink";
 import type { UserRole } from "@prisma/client";
 
-const NAV_ITEMS: Array<{ href: string; label: string; roles: UserRole[] }> = [
+interface NavItem {
+  href: string;
+  label: string;
+  roles: UserRole[];
+  // Optional predicate that must also be true for this link to appear.
+  // Used e.g. to surface the KGB link only for TETAP employees and the
+  // Kontrak link only for KONTRAK / HONORER employees.
+  showIf?: (ctx: { employmentStatus: string | null }) => boolean;
+}
+
+const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Beranda", roles: ["ADMIN", "HR", "RECTOR", "FOUNDATION", "EMPLOYEE"] },
-  { href: "/my-requests", label: "Pengajuan KGB Saya", roles: ["EMPLOYEE", "ADMIN"] },
+  {
+    href: "/my-requests",
+    label: "Pengajuan KGB Saya",
+    roles: ["EMPLOYEE", "ADMIN"],
+    showIf: ({ employmentStatus }) =>
+      employmentStatus === null || employmentStatus === "TETAP",
+  },
+  {
+    href: "/kontrak",
+    label: "Perbaruan Kontrak",
+    roles: ["EMPLOYEE", "ADMIN"],
+    showIf: ({ employmentStatus }) =>
+      employmentStatus === null ||
+      employmentStatus === "KONTRAK" ||
+      employmentStatus === "HONORER",
+  },
   { href: "/hr", label: "Verifikasi Kepegawaian", roles: ["HR", "ADMIN"] },
+  { href: "/hr/kelengkapan", label: "Kelengkapan Data", roles: ["HR", "ADMIN"] },
   { href: "/rector", label: "Tanda Tangan Rektor", roles: ["RECTOR", "ADMIN"] },
   { href: "/foundation", label: "Persetujuan Yayasan", roles: ["FOUNDATION", "ADMIN"] },
   { href: "/employees", label: "Data Pegawai", roles: ["HR", "ADMIN"] },
   { href: "/evaluations", label: "Evaluasi", roles: ["HR", "ADMIN"] },
   { href: "/increments", label: "Riwayat KGB", roles: ["HR", "ADMIN", "RECTOR", "FOUNDATION"] },
+  {
+    href: "/profile",
+    label: "Profil Saya",
+    roles: ["ADMIN", "HR", "RECTOR", "FOUNDATION", "EMPLOYEE"],
+  },
 ];
 
 function humanRole(role: UserRole): string {
@@ -33,7 +65,25 @@ function humanRole(role: UserRole): string {
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
-  const visibleNav = NAV_ITEMS.filter((item) => item.roles.includes(user.role));
+
+  // Look up the employee's employmentStatus once per request so we can hide
+  // role-appropriate-but-status-inappropriate links (KGB vs. Kontrak).
+  // HR / RECTOR / FOUNDATION / ADMIN accounts often have no Employee row
+  // attached, in which case we pass null and keep default visibility.
+  let employmentStatus: string | null = null;
+  if (user.role === "EMPLOYEE") {
+    const dbUser = await prisma.user.findUnique({
+      where: { id: user.userId },
+      select: { employee: { select: { employmentStatus: true } } },
+    });
+    employmentStatus = dbUser?.employee?.employmentStatus ?? null;
+  }
+
+  const visibleNav = NAV_ITEMS.filter((item) => {
+    if (!item.roles.includes(user.role)) return false;
+    if (item.showIf && !item.showIf({ employmentStatus })) return false;
+    return true;
+  });
 
   return (
     <div className="flex min-h-screen flex-col">

@@ -105,6 +105,35 @@ enum Gender {
   FEMALE
 }
 
+// Self-editable profile fields often required by BAN-PT / LLDikti accreditation.
+// These fields are kept nullable because legacy migrated rows have no data yet —
+// the HR "Kelengkapan Data" page nags employees to fill them in.
+enum LastEducation {
+  SD
+  SMP
+  SMA
+  D3
+  S1
+  S2
+  S3
+}
+
+enum MaritalStatus {
+  BELUM_KAWIN
+  KAWIN
+  CERAI_HIDUP
+  CERAI_MATI
+}
+
+enum Religion {
+  ISLAM
+  KRISTEN
+  KATOLIK
+  HINDU
+  BUDDHA
+  KONGHUCU
+}
+
 model Employee {
   id                  String          @id @default(cuid())
   nip                 String          @unique // Nomor Induk Pegawai
@@ -121,6 +150,18 @@ model Employee {
   nextIncrementDate   DateTime        // projected next TMT (computed at write time)
   status              EmployeeStatus  @default(ACTIVE)
   employmentStatus    EmploymentStatus @default(TETAP)
+
+  // HRIS Phase 1: self-editable profile fields (accreditation-ready).
+  // Read-only fields (NIP, salary, golongan, TMT, etc.) remain HR-only.
+  placeOfBirth        String?
+  nik                 String?         @unique // KTP, 16 digit
+  religion            Religion?
+  lastEducation       LastEducation?
+  maritalStatus       MaritalStatus?
+  dependentsCount     Int?            // jumlah tanggungan untuk PPh21
+  emergencyContact    String?         // nama + hubungan + telp kontak darurat
+  profileUpdatedAt    DateTime?       // nudged by the HR "Kelengkapan Data" page
+
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt
 
@@ -138,11 +179,18 @@ model DosenDetail {
   employee         Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   employeeId       String       @unique
   nidn             String       @unique
+  nidk             String?      @unique // NIDK untuk dosen non-PNS / kontrak akademik
   academicRank     AcademicRank @relation(fields: [academicRankId], references: [id])
   academicRankId   Int
   lastRankDate     DateTime?    // TMT jabatan akademik terakhir
   faculty          String
   studyProgram     String
+
+  // HRIS Phase 1: akreditasi-ready research identifiers (self-editable).
+  scopusId         String?
+  sintaId          String?
+  orcid            String?
+  googleScholarId  String?
 }
 
 model StaffDetail {
