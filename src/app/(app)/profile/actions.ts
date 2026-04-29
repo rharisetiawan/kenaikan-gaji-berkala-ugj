@@ -187,11 +187,23 @@ export async function uploadMyPhotoAction(
   const session = await requireUser();
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
-    select: { employeeId: true },
+    select: {
+      employeeId: true,
+      employee: {
+        select: {
+          photoStoredPath: true,
+          photoDriveFileId: true,
+          photoDriveWebViewLink: true,
+          photoMimeType: true,
+          photoSizeBytes: true,
+        },
+      },
+    },
   });
   if (!user?.employeeId) {
     return { error: "Akun Anda belum tertaut dengan data pegawai." };
   }
+  const previous = user.employee;
   const file = formData.get("photo");
   if (!(file instanceof File) || file.size === 0) {
     return { error: "Pilih berkas foto terlebih dahulu." };
@@ -227,6 +239,23 @@ export async function uploadMyPhotoAction(
   } catch (err) {
     await rollbackUpload(saved);
     return { error: `Gagal menyimpan foto: ${(err as Error).message}` };
+  }
+  // Best-effort cleanup of the old photo. We delete only AFTER the new
+  // row points at the new file, so a failure here just leaks one file —
+  // never breaks the upload.
+  if (previous?.photoStoredPath) {
+    try {
+      await rollbackUpload({
+        storedPath: previous.photoStoredPath,
+        driveFileId: previous.photoDriveFileId,
+        driveWebViewLink: previous.photoDriveWebViewLink,
+        originalName: "",
+        mimeType: previous.photoMimeType ?? "application/octet-stream",
+        sizeBytes: previous.photoSizeBytes ?? 0,
+      });
+    } catch (err) {
+      console.error("Old photo cleanup failed:", (err as Error).message);
+    }
   }
   revalidatePath("/profile");
   revalidatePath("/employees");

@@ -58,6 +58,7 @@ export default async function EmployeeDetailPage({
             employeeId={employee.id}
             fullName={employee.fullName}
             hasPhoto={Boolean(employee.photoStoredPath)}
+            version={employee.photoSizeBytes ?? null}
             size={80}
           />
           <div className="min-w-0 flex-1">

@@ -8,6 +8,13 @@ export interface EmployeeAvatarProps {
   employeeId: string;
   fullName: string;
   hasPhoto: boolean;
+  /**
+   * Cache-buster appended as `?v=...` to the photo URL. Pass any value
+   * that changes when the photo changes (e.g. Employee.updatedAt or
+   * photoSizeBytes). Without this, browsers serve a stale cached image
+   * for `Cache-Control: max-age` after the user replaces their photo.
+   */
+  version?: string | number | null;
   size?: number;
   className?: string;
 }
@@ -40,6 +47,7 @@ export function EmployeeAvatar({
   employeeId,
   fullName,
   hasPhoto,
+  version,
   size = 40,
   className = "",
 }: EmployeeAvatarProps) {
@@ -47,12 +55,15 @@ export function EmployeeAvatar({
   if (hasPhoto) {
     // Plain <img> rather than next/image so we don't have to add the
     // /api/employee-photo route to next.config images.remotePatterns.
-    // Cache-Control on the route gates re-fetch; new uploads bust it via
-    // revalidatePath on /employees and /profile.
+    // The ?v= query bypasses the browser's HTTP cache when the photo
+    // changes; the API route still benefits from short-term caching
+    // for unchanged photos.
+    const versionSuffix =
+      version === null || version === undefined ? "" : `?v=${encodeURIComponent(String(version))}`;
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={`/api/employee-photo/${employeeId}`}
+        src={`/api/employee-photo/${employeeId}${versionSuffix}`}
         alt={fullName}
         width={size}
         height={size}

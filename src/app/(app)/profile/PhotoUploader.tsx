@@ -8,9 +8,15 @@ interface PhotoUploaderProps {
   employeeId: string;
   fullName: string;
   hasPhoto: boolean;
+  photoVersion?: string | number | null;
 }
 
-export function PhotoUploader({ employeeId, fullName, hasPhoto }: PhotoUploaderProps) {
+export function PhotoUploader({
+  employeeId,
+  fullName,
+  hasPhoto,
+  photoVersion,
+}: PhotoUploaderProps) {
   const [state, formAction, pending] = useActionState<PhotoUploadState, FormData>(
     uploadMyPhotoAction,
     {},
@@ -22,6 +28,7 @@ export function PhotoUploader({ employeeId, fullName, hasPhoto }: PhotoUploaderP
           employeeId={employeeId}
           fullName={fullName}
           hasPhoto={hasPhoto}
+          version={photoVersion ?? null}
           size={96}
         />
         <div className="min-w-0 flex-1">

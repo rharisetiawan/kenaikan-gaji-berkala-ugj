@@ -109,6 +109,7 @@ export default async function MyProfilePage() {
         employeeId={emp.id}
         fullName={emp.fullName}
         hasPhoto={Boolean(emp.photoStoredPath)}
+        photoVersion={emp.photoSizeBytes ?? null}
       />
 
       <div className="rounded-lg border border-slate-200 bg-white p-4">
