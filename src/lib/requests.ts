@@ -1,10 +1,10 @@
 import type { IncrementRequestStatus, DocumentKind, EmployeeType } from "@prisma/client";
 
 // Feature flag: the Dosen (Lecturer) workflow — including the Bukti Tridharma
-// upload — is on hold per product scope. Schema and roles remain in place so
-// Dosen data can coexist, but self-service submission is blocked for Dosen
-// until this flips to true.
-export const DOSEN_WORKFLOW_ENABLED = false;
+// upload and the BKD-pass eligibility gate — is enabled. Schema and roles are
+// shared with Staff; see `requiredDocumentsFor` for the per-type document list
+// and `eligibility.ts` for the BKD gate.
+export const DOSEN_WORKFLOW_ENABLED = true;
 
 export const REQUIRED_DOCUMENTS_STAFF: DocumentKind[] = ["SKP", "LAST_SK_BERKALA"];
 export const REQUIRED_DOCUMENTS_DOSEN: DocumentKind[] = [

@@ -3,9 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/auth";
-import { computeIncrementAmount, computeNextIncrementDate } from "@/lib/eligibility";
-import { saveUpload } from "@/lib/uploads";
+import { requireUser, requireRole } from "@/lib/auth";
+import {
+  computeIncrementAmount,
+  computeNextIncrementDate,
+  dosenHasRecentBkdPasses,
+} from "@/lib/eligibility";
+import { readKgbRulesInTx } from "@/lib/app-settings";
+import { saveUpload, rollbackUpload, type SavedUpload } from "@/lib/uploads";
 import { requiredDocumentsFor, workflowEnabledFor } from "@/lib/requests";
 import type { DocumentKind, IncrementRequestStatus } from "@prisma/client";
 
@@ -52,10 +57,7 @@ export async function submitIncrementRequestAction(formData: FormData): Promise<
   }
 
   const notes = (formData.get("notes") as string | null)?.toString() ?? null;
-
   const projectedEffectiveDate = computeNextIncrementDate(employee);
-  const incrementAmount = computeIncrementAmount(employee.currentBaseSalary);
-  const projectedNewSalary = employee.currentBaseSalary + incrementAmount;
 
   const required = requiredDocumentsFor(employee.type);
   for (const kind of required) {
@@ -65,12 +67,44 @@ export async function submitIncrementRequestAction(formData: FormData): Promise<
     }
   }
 
-  // Atomic check-and-create: two concurrent submissions from the same
-  // employee (e.g. double-click or two tabs) can both pass a non-transactional
-  // findFirst. Wrap both reads and write in a Serializable transaction so the
-  // DB rejects the second one.
+  // Atomic check-and-create. Wrap rules read, BKD evaluation read, BKD gate,
+  // financial computation, dupe check, and create in one Serializable
+  // transaction so:
+  //   - BKD evaluations seen by the gate live in the same isolation snapshot
+  //     as the rules and the dupe check (no split-brain if HR concurrently
+  //     marks an evaluation FAIL/PASS).
+  //   - The financial snapshot stored on the IncrementRequest comes from the
+  //     same snapshot as the rules.
+  //   - A DB blip on the rules read aborts the txn instead of silently
+  //     falling back to hardcoded defaults (cf. the warning on
+  //     getAppSettings in src/lib/app-settings.ts).
   const request = await prisma.$transaction(
     async (tx) => {
+      const rules = await readKgbRulesInTx(tx);
+      // Re-read BKD evaluations inside the txn so the gate operates on the
+      // same isolation snapshot as the rules and dupe check above.
+      const bkdEvaluations = await tx.bkdEvaluation.findMany({
+        where: { employeeId: employee.id },
+      });
+
+      // Dosen gate: block submission if BKD isn't passed for the configured
+      // number of most-recent semesters. HR would otherwise reject; pre-
+      // flighting avoids wasted uploads.
+      if (
+        employee.type === "DOSEN" &&
+        !dosenHasRecentBkdPasses(bkdEvaluations, rules.dosenRequiredBkdPasses)
+      ) {
+        throw new Error(
+          `Pengajuan diblokir: BKD ${rules.dosenRequiredBkdPasses} semester terakhir belum lulus. Selesaikan BKD sebelum mengajukan KGB.`,
+        );
+      }
+
+      const incrementAmount = computeIncrementAmount(
+        employee.currentBaseSalary,
+        rules.incrementPercent,
+      );
+      const projectedNewSalary = employee.currentBaseSalary + incrementAmount;
+
       const existing = await tx.incrementRequest.findFirst({
         where: {
           employeeId: employee.id,
@@ -99,18 +133,22 @@ export async function submitIncrementRequestAction(formData: FormData): Promise<
   );
 
   // File writes aren't transactional. If any upload or DB insert fails after
-  // the IncrementRequest row was created, roll back the row so the employee
-  // can resubmit (without hitting the duplicate-active-request guard).
+  // the IncrementRequest row was created, roll back both the DB row and any
+  // Drive files we already created so the employee can resubmit cleanly.
+  const uploadedSoFar: SavedUpload[] = [];
   try {
     for (const kind of required) {
       const file = formData.get(`doc_${kind}`) as File;
       const saved = await saveUpload(file, request.id, kind);
+      uploadedSoFar.push(saved);
       await prisma.requestDocument.create({
         data: {
           requestId: request.id,
           kind: kind as DocumentKind,
           originalName: saved.originalName,
           storedPath: saved.storedPath,
+          driveFileId: saved.driveFileId,
+          driveWebViewLink: saved.driveWebViewLink,
           mimeType: saved.mimeType,
           sizeBytes: saved.sizeBytes,
           uploadedById: session.userId,
@@ -118,6 +156,7 @@ export async function submitIncrementRequestAction(formData: FormData): Promise<
       });
     }
   } catch (err) {
+    await Promise.all(uploadedSoFar.map((s) => rollbackUpload(s)));
     await prisma.requestDocument.deleteMany({ where: { requestId: request.id } });
     await prisma.incrementRequest.delete({ where: { id: request.id } }).catch(() => {});
     throw err;
@@ -126,6 +165,133 @@ export async function submitIncrementRequestAction(formData: FormData): Promise<
   revalidatePath("/my-requests");
   revalidatePath("/hr");
   redirect(`/my-requests/${request.id}`);
+}
+
+/**
+ * HR (or ADMIN) bypass: submit an IncrementRequest on behalf of an elderly
+ * or non-tech-savvy pegawai. The same eligibility/gate checks apply as for
+ * the self-service flow; the request is persisted with `filedById` set to
+ * the HR user so audit can distinguish HR-filed vs self-filed requests.
+ */
+export async function submitRequestOnBehalfAction(formData: FormData): Promise<void> {
+  const session = await requireRole(["HR", "ADMIN"]);
+
+  const employeeId = String(formData.get("employeeId") ?? "").trim();
+  if (!employeeId) throw new Error("ID pegawai wajib.");
+
+  const employee = await prisma.employee.findUnique({
+    where: { id: employeeId },
+  });
+  if (!employee) throw new Error("Pegawai tidak ditemukan.");
+
+  if (!workflowEnabledFor(employee.type)) {
+    throw new Error(
+      "Alur KGB untuk tipe pegawai ini belum diaktifkan.",
+    );
+  }
+  if (employee.employmentStatus !== "TETAP") {
+    throw new Error(
+      "Kenaikan Gaji Berkala hanya berlaku untuk pegawai tetap.",
+    );
+  }
+  const notes = (formData.get("notes") as string | null)?.toString() ?? null;
+  const projectedEffectiveDate = computeNextIncrementDate(employee);
+
+  const required = requiredDocumentsFor(employee.type);
+  for (const kind of required) {
+    const file = formData.get(`doc_${kind}`);
+    if (!(file instanceof File) || file.size === 0) {
+      throw new Error(`Berkas ${kind} wajib diunggah.`);
+    }
+  }
+
+  // See submitIncrementRequestAction for the rationale: rules read + BKD
+  // gate + financial computation + dupe check + create all live in one
+  // Serializable transaction so the financial snapshot is derived from
+  // the same rules that gated the submission, and a DB blip on the rules
+  // read aborts the txn instead of silently using hardcoded defaults.
+  const request = await prisma.$transaction(
+    async (tx) => {
+      const rules = await readKgbRulesInTx(tx);
+      const bkdEvaluations = await tx.bkdEvaluation.findMany({
+        where: { employeeId: employee.id },
+      });
+
+      if (
+        employee.type === "DOSEN" &&
+        !dosenHasRecentBkdPasses(bkdEvaluations, rules.dosenRequiredBkdPasses)
+      ) {
+        throw new Error(
+          `Pengajuan diblokir: BKD ${rules.dosenRequiredBkdPasses} semester terakhir belum lulus.`,
+        );
+      }
+
+      const incrementAmount = computeIncrementAmount(
+        employee.currentBaseSalary,
+        rules.incrementPercent,
+      );
+      const projectedNewSalary = employee.currentBaseSalary + incrementAmount;
+
+      const existing = await tx.incrementRequest.findFirst({
+        where: {
+          employeeId: employee.id,
+          status: {
+            in: ["SUBMITTED", "HR_VERIFIED", "RECTOR_SIGNED", "FOUNDATION_APPROVED"],
+          },
+        },
+      });
+      if (existing) {
+        throw new Error(
+          "Sudah ada pengajuan aktif pegawai ini yang sedang diproses.",
+        );
+      }
+      return tx.incrementRequest.create({
+        data: {
+          employeeId: employee.id,
+          status: "SUBMITTED",
+          currentSalary: employee.currentBaseSalary,
+          projectedNewSalary,
+          incrementAmount,
+          projectedEffectiveDate,
+          employeeNotes: notes,
+          submittedAt: new Date(),
+          filedById: session.userId,
+        },
+      });
+    },
+    { isolationLevel: "Serializable" },
+  );
+
+  const uploadedSoFar: SavedUpload[] = [];
+  try {
+    for (const kind of required) {
+      const file = formData.get(`doc_${kind}`) as File;
+      const saved = await saveUpload(file, request.id, kind);
+      uploadedSoFar.push(saved);
+      await prisma.requestDocument.create({
+        data: {
+          requestId: request.id,
+          kind: kind as DocumentKind,
+          originalName: saved.originalName,
+          storedPath: saved.storedPath,
+          driveFileId: saved.driveFileId,
+          driveWebViewLink: saved.driveWebViewLink,
+          mimeType: saved.mimeType,
+          sizeBytes: saved.sizeBytes,
+          uploadedById: session.userId,
+        },
+      });
+    }
+  } catch (err) {
+    await Promise.all(uploadedSoFar.map((s) => rollbackUpload(s)));
+    await prisma.requestDocument.deleteMany({ where: { requestId: request.id } });
+    await prisma.incrementRequest.delete({ where: { id: request.id } }).catch(() => {});
+    throw err;
+  }
+
+  revalidatePath("/hr");
+  revalidatePath(`/employees/${employee.id}`);
+  redirect(`/hr/${request.id}`);
 }
 
 async function loadRequestOrThrow(id: string) {
@@ -341,7 +507,16 @@ export async function foundationIssueSkAction(formData: FormData): Promise<void>
         throw new Error("Pegawai tidak ditemukan saat menerbitkan SK.");
       }
       const previousSalary = freshEmp.currentBaseSalary;
-      const incrementAmount = computeIncrementAmount(previousSalary);
+      // Re-read rules through the tx client so the rules snapshot lives
+      // inside the same Serializable isolation as the salary read above.
+      // A concurrent admin update to incrementPercent will either be
+      // reflected here (and the salary read above will see the same
+      // post-update state) or the txn will abort — never split-read.
+      const rules = await readKgbRulesInTx(tx);
+      const incrementAmount = computeIncrementAmount(
+        previousSalary,
+        rules.incrementPercent,
+      );
       const newSalary = previousSalary + incrementAmount;
 
       const history = await tx.incrementHistory.create({

@@ -44,3 +44,4 @@ next-env.d.ts
 
 # User-uploaded documents (not committed)
 /uploads
+.env*.local

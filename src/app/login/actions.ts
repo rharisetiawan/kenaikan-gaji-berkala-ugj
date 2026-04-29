@@ -28,6 +28,13 @@ export async function loginAction(
   if (!ok) {
     return { error: "Email atau kata sandi salah." };
   }
+  // Same generic error for deactivated accounts. Differentiating here would
+  // let an attacker who guessed a correct password distinguish "wrong
+  // password" from "correct password but deactivated", leaking account
+  // state. Operators see deactivation status in /admin/users.
+  if (!user.isActive) {
+    return { error: "Email atau kata sandi salah." };
+  }
 
   await createSession(user);
   redirect("/dashboard");
