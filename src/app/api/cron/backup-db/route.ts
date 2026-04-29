@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { timingSafeEqual } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import { prisma } from "@/lib/prisma";
 import {
@@ -37,7 +38,12 @@ function authorized(req: NextRequest): boolean {
     req.headers.get("x-cron-secret") ??
     req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ??
     "";
-  return headerValue === secret;
+  // Constant-time compare so a network attacker cannot recover the secret
+  // byte-by-byte from response timing. timingSafeEqual requires equal
+  // lengths, so we early-out on a length mismatch (length itself is not
+  // sensitive — leaking it does not help an attacker).
+  if (headerValue.length !== secret.length) return false;
+  return timingSafeEqual(Buffer.from(headerValue), Buffer.from(secret));
 }
 
 interface BackupTable {
